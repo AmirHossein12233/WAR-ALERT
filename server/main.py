@@ -1,5 +1,6 @@
 from fastapi import FastAPI, HTTPException, Header
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import FileResponse
 from pydantic import BaseModel
 from pathlib import Path
 from datetime import datetime, timezone
@@ -16,7 +17,25 @@ import secrets
 APP_NAME = "WAR ALERT"
 APP_VERSION = "1.0.0"
 
+# Project root:
+# WAR-ALERT/
+# ├── index.html
+# ├── style.css
+# ├── app.js
+# ├── alerts.js
+# ├── admin.html
+# ├── admin.css
+# ├── admin.js
+# ├── admin-login.html
+# ├── admin-login.css
+# ├── admin-login.js
+# ├── server/
+# │   └── main.py
+# └── data/
+#     └── alerts.json
+
 BASE_DIR = Path(__file__).resolve().parent.parent
+
 DATA_DIR = BASE_DIR / "data"
 ALERTS_FILE = DATA_DIR / "alerts.json"
 
@@ -35,7 +54,7 @@ ADMIN_TOKEN = os.getenv(
 app = FastAPI(
     title=APP_NAME,
     version=APP_VERSION,
-    description="سامانه اطلاع‌رسانی اضطراری"
+    description="سامانه اطلاع‌رسانی اضطراری WAR ALERT"
 )
 
 
@@ -90,7 +109,10 @@ def default_data():
                 "id": 1,
                 "type": "info",
                 "title": "سامانه اطلاع‌رسانی آماده است",
-                "description": "این پیام آزمایشی است و برای بررسی عملکرد برنامه نمایش داده می‌شود.",
+                "description": (
+                    "این پیام آزمایشی است و برای بررسی "
+                    "عملکرد برنامه نمایش داده می‌شود."
+                ),
                 "city": "همه",
                 "source": "WAR ALERT - آزمایشی",
                 "time": "اکنون",
@@ -239,21 +261,127 @@ def next_id(alerts):
 
 
 # =========================================================
-# ROOT
+# FRONTEND FILE HELPER
 # =========================================================
 
-@app.get("/")
-def root():
-    return {
-        "status": "ok",
-        "app": APP_NAME,
-        "version": APP_VERSION,
-        "message": "WAR ALERT API is running."
-    }
+def frontend_file(filename: str):
+    """
+    Serves files from the project root safely.
+    """
+
+    requested = (BASE_DIR / filename).resolve()
+
+    try:
+        requested.relative_to(BASE_DIR.resolve())
+    except ValueError:
+        raise HTTPException(
+            status_code=403,
+            detail="دسترسی به این فایل مجاز نیست."
+        )
+
+    if not requested.is_file():
+        raise HTTPException(
+            status_code=404,
+            detail="فایل پیدا نشد."
+        )
+
+    return FileResponse(requested)
 
 
 # =========================================================
-# API INFO
+# FRONTEND
+# =========================================================
+
+@app.get(
+    "/",
+    include_in_schema=False
+)
+def frontend_index():
+    return frontend_file("index.html")
+
+
+@app.get(
+    "/index.html",
+    include_in_schema=False
+)
+def frontend_index_html():
+    return frontend_file("index.html")
+
+
+@app.get(
+    "/style.css",
+    include_in_schema=False
+)
+def frontend_style():
+    return frontend_file("style.css")
+
+
+@app.get(
+    "/app.js",
+    include_in_schema=False
+)
+def frontend_app_js():
+    return frontend_file("app.js")
+
+
+@app.get(
+    "/alerts.js",
+    include_in_schema=False
+)
+def frontend_alerts_js():
+    return frontend_file("alerts.js")
+
+
+@app.get(
+    "/admin.html",
+    include_in_schema=False
+)
+def frontend_admin():
+    return frontend_file("admin.html")
+
+
+@app.get(
+    "/admin.css",
+    include_in_schema=False
+)
+def frontend_admin_css():
+    return frontend_file("admin.css")
+
+
+@app.get(
+    "/admin.js",
+    include_in_schema=False
+)
+def frontend_admin_js():
+    return frontend_file("admin.js")
+
+
+@app.get(
+    "/admin-login.html",
+    include_in_schema=False
+)
+def frontend_admin_login():
+    return frontend_file("admin-login.html")
+
+
+@app.get(
+    "/admin-login.css",
+    include_in_schema=False
+)
+def frontend_admin_login_css():
+    return frontend_file("admin-login.css")
+
+
+@app.get(
+    "/admin-login.js",
+    include_in_schema=False
+)
+def frontend_admin_login_js():
+    return frontend_file("admin-login.js")
+
+
+# =========================================================
+# ROOT API INFO
 # =========================================================
 
 @app.get("/api")
@@ -464,9 +592,7 @@ def update_alert(
         target["title"] = title
 
     if alert.description is not None:
-        description = (
-            alert.description.strip()
-        )
+        description = alert.description.strip()
 
         if not description:
             raise HTTPException(
