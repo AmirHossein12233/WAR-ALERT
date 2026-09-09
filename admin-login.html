@@ -1,0 +1,121 @@
+<!DOCTYPE html>
+<html lang="fa" dir="rtl">
+
+<head>
+    <meta charset="UTF-8">
+
+    <meta
+        name="viewport"
+        content="width=device-width, initial-scale=1.0"
+    >
+
+    <meta
+        name="theme-color"
+        content="#0f172a"
+    >
+
+    <meta
+        name="description"
+        content="ورود به پنل مدیریت WAR ALERT"
+    >
+
+    <title>ورود مدیریت | WAR ALERT</title>
+
+    <link
+        rel="stylesheet"
+        href="admin-login.css"
+    >
+</head>
+
+<body>
+
+<main class="login-page">
+
+    <section class="login-card">
+
+        <div class="brand">
+
+            <div class="brand-icon">
+                ⚠️
+            </div>
+
+            <h1>
+                WAR ALERT
+            </h1>
+
+            <p>
+                سامانه اطلاع‌رسانی اضطراری
+            </p>
+
+        </div>
+
+
+        <div class="login-title">
+
+            <h2>
+                ورود به پنل مدیریت
+            </h2>
+
+            <span>
+                برای ادامه، رمز مدیریت را وارد کنید.
+            </span>
+
+        </div>
+
+
+        <form id="loginForm">
+
+            <div class="form-group">
+
+                <label for="token">
+                    رمز مدیریت
+                </label>
+
+                <input
+                    id="token"
+                    name="token"
+                    type="password"
+                    autocomplete="current-password"
+                    placeholder="رمز مدیریت را وارد کنید"
+                    maxlength="200"
+                    required
+                >
+
+            </div>
+
+
+            <button
+                id="loginBtn"
+                class="login-btn"
+                type="submit"
+            >
+                ورود به پنل مدیریت
+            </button>
+
+        </form>
+
+
+        <div
+            id="message"
+            class="message"
+            role="alert"
+            aria-live="polite"
+        ></div>
+
+
+        <a
+            href="index.html"
+            class="back-link"
+        >
+            ← بازگشت به صفحه اصلی
+        </a>
+
+    </section>
+
+</main>
+
+
+<script src="admin-login.js"></script>
+
+</body>
+</html>

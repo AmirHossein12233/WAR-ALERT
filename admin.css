@@ -1,0 +1,495 @@
+* {
+    box-sizing: border-box;
+}
+
+html,
+body {
+    margin: 0;
+    padding: 0;
+    min-height: 100%;
+}
+
+body {
+    font-family:
+        Tahoma,
+        Arial,
+        sans-serif;
+
+    background:
+        linear-gradient(
+            135deg,
+            #020617,
+            #0f172a
+        );
+
+    color: #e5e7eb;
+}
+
+button,
+input,
+textarea,
+select {
+    font-family: inherit;
+}
+
+button {
+    cursor: pointer;
+}
+
+.page {
+    width: min(1200px, 94%);
+    margin: auto;
+}
+
+.topbar {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 20px;
+
+    padding: 28px 0;
+}
+
+.topbar h1 {
+    margin: 0 0 8px;
+    font-size: 28px;
+}
+
+.topbar p {
+    margin: 0;
+    color: #94a3b8;
+}
+
+.logout-btn {
+    border: 0;
+    border-radius: 12px;
+
+    padding: 12px 20px;
+
+    background: #7f1d1d;
+    color: white;
+
+    font-size: 14px;
+}
+
+.logout-btn:hover {
+    background: #991b1b;
+}
+
+.status-box {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+
+    padding: 15px 18px;
+
+    margin-bottom: 20px;
+
+    background: #111827;
+    border: 1px solid #1e293b;
+    border-radius: 16px;
+}
+
+.status-dot {
+    display: inline-block;
+
+    width: 10px;
+    height: 10px;
+
+    margin-left: 8px;
+
+    border-radius: 50%;
+
+    background: #64748b;
+}
+
+.status-dot.online {
+    background: #22c55e;
+}
+
+.status-dot.offline {
+    background: #ef4444;
+}
+
+.refresh-btn {
+    border: 1px solid #334155;
+    border-radius: 10px;
+
+    padding: 9px 16px;
+
+    background: #1e293b;
+    color: white;
+}
+
+.stats {
+    display: grid;
+
+    grid-template-columns:
+        repeat(4, 1fr);
+
+    gap: 16px;
+
+    margin-bottom: 20px;
+}
+
+.stat-card {
+    padding: 20px;
+
+    background: #111827;
+
+    border:
+        1px solid #1e293b;
+
+    border-radius: 16px;
+}
+
+.stat-card span {
+    display: block;
+
+    color: #94a3b8;
+
+    font-size: 14px;
+
+    margin-bottom: 10px;
+}
+
+.stat-card strong {
+    font-size: 30px;
+}
+
+.panel {
+    background: #111827;
+
+    border:
+        1px solid #1e293b;
+
+    border-radius: 18px;
+
+    padding: 22px;
+
+    margin-bottom: 20px;
+}
+
+.panel-title {
+    margin-bottom: 20px;
+}
+
+.panel-title h2 {
+    margin: 0;
+
+    font-size: 20px;
+}
+
+.form-grid {
+    display: grid;
+
+    grid-template-columns:
+        1fr 1fr;
+
+    gap: 16px;
+}
+
+.field {
+    margin-bottom: 17px;
+}
+
+.field label {
+    display: block;
+
+    margin-bottom: 8px;
+
+    color: #cbd5e1;
+
+    font-size: 14px;
+}
+
+.field input,
+.field textarea,
+.field select {
+    width: 100%;
+
+    border:
+        1px solid #334155;
+
+    border-radius: 11px;
+
+    padding: 13px 14px;
+
+    background: #020617;
+
+    color: #f8fafc;
+
+    outline: none;
+
+    font-size: 15px;
+}
+
+.field textarea {
+    resize: vertical;
+}
+
+.field input:focus,
+.field textarea:focus,
+.field select:focus {
+    border-color: #64748b;
+}
+
+.form-actions {
+    display: flex;
+
+    gap: 10px;
+
+    flex-wrap: wrap;
+}
+
+.primary-btn,
+.secondary-btn {
+    border: 0;
+
+    border-radius: 11px;
+
+    padding: 12px 20px;
+
+    font-size: 14px;
+}
+
+.primary-btn {
+    background: #2563eb;
+    color: white;
+}
+
+.primary-btn:hover {
+    background: #1d4ed8;
+}
+
+.secondary-btn {
+    background: #334155;
+    color: white;
+}
+
+.hidden {
+    display: none !important;
+}
+
+.message {
+    min-height: 24px;
+
+    margin-top: 14px;
+
+    font-size: 14px;
+}
+
+.message.success {
+    color: #4ade80;
+}
+
+.message.error {
+    color: #f87171;
+}
+
+.list-header {
+    display: flex;
+
+    justify-content: space-between;
+
+    align-items: center;
+
+    gap: 15px;
+}
+
+.search-input {
+    width: 300px;
+
+    max-width: 100%;
+
+    border:
+        1px solid #334155;
+
+    border-radius: 10px;
+
+    padding: 11px 13px;
+
+    background: #020617;
+
+    color: white;
+
+    outline: none;
+}
+
+.alerts-list {
+    display: grid;
+
+    gap: 14px;
+}
+
+.alert-card {
+    border:
+        1px solid #273449;
+
+    border-radius: 14px;
+
+    padding: 17px;
+
+    background: #0b1220;
+}
+
+.alert-top {
+    display: flex;
+
+    justify-content: space-between;
+
+    gap: 15px;
+
+    align-items: flex-start;
+}
+
+.alert-title {
+    margin: 0;
+
+    font-size: 18px;
+}
+
+.badge {
+    display: inline-block;
+
+    padding: 5px 10px;
+
+    border-radius: 20px;
+
+    background: #334155;
+
+    font-size: 12px;
+
+    white-space: nowrap;
+}
+
+.badge.warning {
+    background: #854d0e;
+}
+
+.badge.danger {
+    background: #991b1b;
+}
+
+.badge.info {
+    background: #1e40af;
+}
+
+.alert-description {
+    color: #cbd5e1;
+
+    line-height: 1.9;
+
+    margin: 12px 0;
+}
+
+.alert-meta {
+    display: flex;
+
+    flex-wrap: wrap;
+
+    gap: 12px;
+
+    color: #94a3b8;
+
+    font-size: 12px;
+}
+
+.alert-actions {
+    display: flex;
+
+    gap: 8px;
+
+    margin-top: 15px;
+}
+
+.edit-btn,
+.delete-btn {
+    border: 0;
+
+    border-radius: 9px;
+
+    padding: 8px 13px;
+
+    color: white;
+}
+
+.edit-btn {
+    background: #334155;
+}
+
+.delete-btn {
+    background: #7f1d1d;
+}
+
+.loading,
+.empty {
+    text-align: center;
+
+    padding: 30px;
+
+    color: #94a3b8;
+}
+
+footer {
+    text-align: center;
+
+    color: #64748b;
+
+    padding: 25px 0 40px;
+
+    font-size: 12px;
+}
+
+@media (max-width: 800px) {
+
+    .stats {
+        grid-template-columns:
+            repeat(2, 1fr);
+    }
+
+    .form-grid {
+        grid-template-columns: 1fr;
+    }
+
+}
+
+@media (max-width: 520px) {
+
+    .topbar {
+        align-items: flex-start;
+
+        flex-direction: column;
+    }
+
+    .topbar h1 {
+        font-size: 23px;
+    }
+
+    .stats {
+        grid-template-columns: 1fr;
+    }
+
+    .status-box {
+        align-items: flex-start;
+
+        flex-direction: column;
+
+        gap: 12px;
+    }
+
+    .list-header {
+        align-items: stretch;
+
+        flex-direction: column;
+    }
+
+    .search-input {
+        width: 100%;
+    }
+
+    .alert-top {
+        flex-direction: column;
+    }
+
+}

@@ -1,0 +1,379 @@
+<!DOCTYPE html>
+<html lang="fa" dir="rtl">
+
+<head>
+    <meta charset="UTF-8">
+
+    <meta
+        name="viewport"
+        content="width=device-width, initial-scale=1.0"
+    >
+
+    <meta
+        name="theme-color"
+        content="#0f172a"
+    >
+
+    <meta
+        name="description"
+        content="سامانه اطلاع‌رسانی و هشدارهای اضطراری"
+    >
+
+    <title>هشدار | اطلاع‌رسانی اضطراری</title>
+
+    <link
+        rel="stylesheet"
+        href="style.css"
+    >
+</head>
+
+<body>
+
+<header class="header">
+
+    <div class="brand">
+
+        <div class="brand-icon">
+            ⚠️
+        </div>
+
+        <div>
+            <h1>هشدار</h1>
+
+            <span>
+                سامانه اطلاع‌رسانی اضطراری
+            </span>
+        </div>
+
+    </div>
+
+
+    <div class="header-actions">
+
+        <div class="connection">
+            <span class="connection-dot"></span>
+            <span id="connectionText">آنلاین</span>
+        </div>
+
+        <a
+            href="admin-login.html"
+            class="admin-link"
+        >
+            🔐 مدیریت
+        </a>
+
+    </div>
+
+</header>
+
+
+<main class="container">
+
+
+    <!-- وضعیت فعلی -->
+
+    <section
+        id="statusCard"
+        class="status-card normal"
+    >
+
+        <div
+            id="statusIcon"
+            class="status-icon"
+        >
+            ✓
+        </div>
+
+        <div class="status-content">
+
+            <span class="status-label">
+                وضعیت فعلی
+            </span>
+
+            <h2 id="statusTitle">
+                وضعیت عادی
+            </h2>
+
+            <p id="statusDescription">
+                برای دریافت اطلاعیه‌های مربوط به منطقه،
+                ابتدا شهر خود را انتخاب کنید.
+            </p>
+
+        </div>
+
+    </section>
+
+
+
+    <!-- منطقه -->
+
+    <section class="location-card">
+
+        <div class="section-title">
+
+            <span>📍</span>
+
+            <h2>
+                منطقه انتخابی
+            </h2>
+
+        </div>
+
+
+        <div class="location-box">
+
+            <div>
+
+                <span class="small-label">
+                    شهر / منطقه
+                </span>
+
+                <strong id="selectedCity">
+                    انتخاب نشده
+                </strong>
+
+            </div>
+
+
+            <button
+                id="changeCityBtn"
+                type="button"
+            >
+                تغییر
+            </button>
+
+        </div>
+
+    </section>
+
+
+
+    <!-- اطلاعیه‌ها -->
+
+    <section class="alerts-section">
+
+        <div class="section-header">
+
+            <div class="section-title">
+
+                <span>🚨</span>
+
+                <h2>
+                    آخرین اطلاعیه‌ها
+                </h2>
+
+            </div>
+
+
+            <button
+                id="refreshBtn"
+                class="refresh-btn"
+                type="button"
+            >
+                ↻ بروزرسانی
+            </button>
+
+        </div>
+
+
+        <div
+            id="alertsList"
+            class="alerts-list"
+        ></div>
+
+    </section>
+
+
+
+    <!-- اعلان -->
+
+    <section class="notification-card">
+
+        <div class="notification-icon">
+            🔔
+        </div>
+
+
+        <div class="notification-content">
+
+            <h2>
+                دریافت هشدارها
+            </h2>
+
+            <p>
+                در صورت پشتیبانی دستگاه،
+                می‌توانید اعلان‌های برنامه را فعال کنید.
+            </p>
+
+        </div>
+
+
+        <button
+            id="notificationBtn"
+            type="button"
+        >
+            فعال‌سازی
+        </button>
+
+    </section>
+
+
+
+    <!-- درباره -->
+
+    <section class="info-card">
+
+        <div class="section-title">
+
+            <span>ℹ️</span>
+
+            <h2>
+                درباره برنامه
+            </h2>
+
+        </div>
+
+
+        <p>
+            این برنامه برای نمایش اطلاعیه‌ها و
+            هشدارهای اضطراری از منابع معتبر طراحی شده است.
+        </p>
+
+
+        <div class="warning-box">
+
+            ⚠️ اطلاعات برنامه باید قبل از انتشار
+            از منابع معتبر بررسی و تأیید شوند.
+
+        </div>
+
+    </section>
+
+</main>
+
+
+
+<footer class="footer">
+
+    <div>
+        هشدار
+    </div>
+
+    <span>
+        نسخه 1.0.0
+    </span>
+
+</footer>
+
+
+
+<!-- انتخاب شهر -->
+
+<div
+    id="cityModal"
+    class="modal hidden"
+>
+
+    <div class="modal-box">
+
+        <button
+            id="closeModal"
+            class="close-modal"
+            type="button"
+            aria-label="بستن"
+        >
+            ×
+        </button>
+
+
+        <h2>
+            انتخاب شهر
+        </h2>
+
+
+        <p>
+            شهر یا منطقه موردنظر را انتخاب کنید.
+        </p>
+
+
+        <div class="city-list">
+
+            <button
+                class="city-btn"
+                data-city="تهران"
+                type="button"
+            >
+                تهران
+            </button>
+
+
+            <button
+                class="city-btn"
+                data-city="اصفهان"
+                type="button"
+            >
+                اصفهان
+            </button>
+
+
+            <button
+                class="city-btn"
+                data-city="شیراز"
+                type="button"
+            >
+                شیراز
+            </button>
+
+
+            <button
+                class="city-btn"
+                data-city="تبریز"
+                type="button"
+            >
+                تبریز
+            </button>
+
+
+            <button
+                class="city-btn"
+                data-city="مشهد"
+                type="button"
+            >
+                مشهد
+            </button>
+
+
+            <button
+                class="city-btn"
+                data-city="سایر"
+                type="button"
+            >
+                سایر
+            </button>
+
+        </div>
+
+    </div>
+
+</div>
+
+
+
+<!-- پیام -->
+
+<div
+    id="toast"
+    class="toast"
+    role="status"
+    aria-live="polite"
+>
+    عملیات انجام شد
+</div>
+
+
+
+<script src="alerts.js"></script>
+<script src="app.js"></script>
+
+</body>
+</html>

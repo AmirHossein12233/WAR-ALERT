@@ -1,0 +1,209 @@
+<!DOCTYPE html>
+<html lang="fa" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+    <meta name="theme-color" content="#0f172a">
+
+    <title>WAR-ALERT | پنل مدیریت</title>
+
+    <link rel="stylesheet" href="admin.css">
+</head>
+
+<body>
+
+<div class="page">
+
+    <header class="topbar">
+        <div>
+            <h1>پنل مدیریت WAR-ALERT</h1>
+            <p>مدیریت اطلاعیه‌های سامانه</p>
+        </div>
+
+        <button id="logoutBtn" class="logout-btn">
+            خروج
+        </button>
+    </header>
+
+    <main>
+
+        <section class="status-box">
+            <div>
+                <span class="status-dot"></span>
+                <span id="serverStatus">در حال بررسی سرور...</span>
+            </div>
+
+            <button id="refreshBtn" class="refresh-btn">
+                بروزرسانی
+            </button>
+        </section>
+
+        <section class="stats">
+
+            <div class="stat-card">
+                <span>کل اطلاعیه‌ها</span>
+                <strong id="totalAlerts">0</strong>
+            </div>
+
+            <div class="stat-card">
+                <span>اطلاعیه عادی</span>
+                <strong id="normalAlerts">0</strong>
+            </div>
+
+            <div class="stat-card">
+                <span>هشدار</span>
+                <strong id="warningAlerts">0</strong>
+            </div>
+
+            <div class="stat-card">
+                <span>اضطراری</span>
+                <strong id="dangerAlerts">0</strong>
+            </div>
+
+        </section>
+
+        <section class="panel">
+
+            <div class="panel-title">
+                <h2 id="formTitle">ثبت اطلاعیه جدید</h2>
+            </div>
+
+            <form id="alertForm">
+
+                <input type="hidden" id="alertId">
+
+                <div class="form-grid">
+
+                    <div class="field">
+                        <label for="type">نوع اطلاعیه</label>
+
+                        <select id="type" required>
+                            <option value="info">اطلاعات</option>
+                            <option value="normal">عادی</option>
+                            <option value="warning">هشدار</option>
+                            <option value="danger">اضطراری</option>
+                        </select>
+                    </div>
+
+                    <div class="field">
+                        <label for="city">شهر</label>
+
+                        <input
+                            id="city"
+                            type="text"
+                            placeholder="مثلاً اصفهان"
+                            required
+                        >
+                    </div>
+
+                </div>
+
+                <div class="field">
+                    <label for="title">عنوان</label>
+
+                    <input
+                        id="title"
+                        type="text"
+                        maxlength="200"
+                        placeholder="عنوان اطلاعیه"
+                        required
+                    >
+                </div>
+
+                <div class="field">
+                    <label for="description">متن اطلاعیه</label>
+
+                    <textarea
+                        id="description"
+                        rows="6"
+                        maxlength="5000"
+                        placeholder="متن اطلاعیه را وارد کنید..."
+                        required
+                    ></textarea>
+                </div>
+
+                <div class="form-grid">
+
+                    <div class="field">
+                        <label for="source">منبع</label>
+
+                        <input
+                            id="source"
+                            type="text"
+                            placeholder="مثلاً سامانه رسمی"
+                        >
+                    </div>
+
+                    <div class="field">
+                        <label for="verified">وضعیت تأیید</label>
+
+                        <select id="verified">
+                            <option value="false">تأیید نشده</option>
+                            <option value="true">تأیید شده</option>
+                        </select>
+                    </div>
+
+                </div>
+
+                <div class="form-actions">
+
+                    <button
+                        type="submit"
+                        id="saveBtn"
+                        class="primary-btn"
+                    >
+                        ثبت اطلاعیه
+                    </button>
+
+                    <button
+                        type="button"
+                        id="cancelEditBtn"
+                        class="secondary-btn hidden"
+                    >
+                        لغو ویرایش
+                    </button>
+
+                </div>
+
+                <div id="formMessage" class="message"></div>
+
+            </form>
+
+        </section>
+
+        <section class="panel">
+
+            <div class="panel-title list-header">
+                <h2>اطلاعیه‌ها</h2>
+
+                <input
+                    id="searchInput"
+                    class="search-input"
+                    type="search"
+                    placeholder="جستجوی اطلاعیه..."
+                >
+            </div>
+
+            <div id="alertsList" class="alerts-list">
+
+                <div class="loading">
+                    در حال دریافت اطلاعیه‌ها...
+                </div>
+
+            </div>
+
+        </section>
+
+    </main>
+
+    <footer>
+        WAR-ALERT © 2026
+    </footer>
+
+</div>
+
+<script src="admin.js"></script>
+
+</body>
+</html>
