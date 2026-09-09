@@ -1,8 +1,8 @@
 "use strict";
 
 /* =========================================================
-   WAR ALERT - ADMIN PANEL
-   Online API + Automatic Alert Type Detection
+   WAR-ALERT ADMIN
+   تشخیص کاملاً خودکار نوع اطلاعیه
    ========================================================= */
 
 const API_BASE = "https://war-alert.onrender.com";
@@ -13,384 +13,580 @@ let ADMIN_TOKEN =
 let alerts = [];
 let editingId = null;
 
+
 /* =========================================================
    DOM
    ========================================================= */
 
 const alertForm = document.getElementById("alertForm");
-const alertsList = document.getElementById("alertsList");
-const searchInput = document.getElementById("searchInput");
-
-const serverStatus = document.getElementById("serverStatus");
-
-const totalAlerts = document.getElementById("totalAlerts");
-const dangerAlerts = document.getElementById("dangerAlerts");
-const warningAlerts = document.getElementById("warningAlerts");
-const verifiedAlerts = document.getElementById("verifiedAlerts");
-
-const logoutButton = document.getElementById("logoutButton");
-const cancelButton = document.getElementById("cancelButton");
 
 const alertIdInput = document.getElementById("alertId");
-const typeInput = document.getElementById("type");
 const cityInput = document.getElementById("city");
 const titleInput = document.getElementById("title");
 const descriptionInput = document.getElementById("description");
 const sourceInput = document.getElementById("source");
 const verifiedInput = document.getElementById("verified");
 
+const detectedType = document.getElementById("detectedType");
+const detectedTypeIcon = document.getElementById("detectedTypeIcon");
+const detectedTypeLabel = document.getElementById("detectedTypeLabel");
+const detectedTypeReason = document.getElementById("detectedTypeReason");
+
+const saveBtn = document.getElementById("saveBtn");
+const cancelEditBtn = document.getElementById("cancelEditBtn");
+const formTitle = document.getElementById("formTitle");
+const formMessage = document.getElementById("formMessage");
+
+const alertsList = document.getElementById("alertsList");
+const searchInput = document.getElementById("searchInput");
+
+const refreshBtn = document.getElementById("refreshBtn");
+const logoutBtn = document.getElementById("logoutBtn");
+
+const serverStatus = document.getElementById("serverStatus");
+
+const totalAlerts = document.getElementById("totalAlerts");
+const normalAlerts = document.getElementById("normalAlerts");
+const warningAlerts = document.getElementById("warningAlerts");
+const dangerAlerts = document.getElementById("dangerAlerts");
+
+
 /* =========================================================
-   Authentication
+   امنیت
    ========================================================= */
 
-function checkLogin() {
-    if (!ADMIN_TOKEN) {
-        window.location.href = "admin-login.html";
-        return false;
-    }
+function escapeHTML(value) {
 
-    return true;
+    return String(value ?? "")
+        .replaceAll("&", "&amp;")
+        .replaceAll("<", "&lt;")
+        .replaceAll(">", "&gt;")
+        .replaceAll('"', "&quot;")
+        .replaceAll("'", "&#039;");
 }
 
-function authHeaders(json = false) {
+
+/* =========================================================
+   تشخیص خودکار نوع اطلاعیه
+   ========================================================= */
+
+function normalizeText(text) {
+
+    return String(text || "")
+        .toLowerCase()
+        .replaceAll("ي", "ی")
+        .replaceAll("ى", "ی")
+        .replaceAll("ك", "ک")
+        .replaceAll("ۀ", "ه")
+        .replaceAll("ة", "ه")
+        .replace(/\u200c/g, " ")
+        .replace(/\s+/g, " ")
+        .trim();
+}
+
+
+const DANGER_WORDS = [
+
+    "فوری",
+    "اضطراری",
+    "خطر فوری",
+    "خطر جدی",
+    "خطر بسیار جدی",
+    "تهدید فوری",
+    "وضعیت قرمز",
+    "بحران",
+    "وضعیت اضطراری",
+    "تخلیه فوری",
+    "تخلیه اضطراری",
+    "هشدار بسیار شدید",
+    "خطر بسیار بالا",
+    "وضعیت بحرانی",
+
+    "emergency",
+    "critical",
+    "danger",
+    "evacuate",
+    "evacuation",
+    "critical alert",
+    "emergency alert"
+];
+
+
+const WARNING_WORDS = [
+
+    "هشدار",
+    "اخطار",
+    "احتیاط",
+    "احتمال خطر",
+    "احتمال",
+    "خطر",
+    "مراقب باشید",
+    "مراقب",
+    "توجه",
+    "وضعیت زرد",
+    "هشدار امنیتی",
+    "هشدار مهم",
+    "خطر احتمالی",
+    "احتمال وقوع",
+
+    "warning",
+    "alert",
+    "caution",
+    "risk",
+    "threat"
+];
+
+
+function findMatchedWord(text, words) {
+
+    for (const word of words) {
+
+        if (text.includes(word)) {
+            return word;
+        }
+    }
+
+    return null;
+}
+
+
+function detectAlertType(title, description) {
+
+    const text = normalizeText(
+        `${title || ""} ${description || ""}`
+    );
+
+    /*
+     * اول اضطراری بررسی می‌شود.
+     * اگر متن هم کلمه خطر و هم کلمه هشدار داشته باشد،
+     * نوع اضطراری اولویت دارد.
+     */
+
+    const dangerMatch = findMatchedWord(
+        text,
+        DANGER_WORDS
+    );
+
+    if (dangerMatch) {
+
+        return {
+            type: "danger",
+            label: "اضطراری",
+            icon: "🚨",
+            reason: `به دلیل وجود عبارت «${dangerMatch}»`
+        };
+    }
+
+
+    const warningMatch = findMatchedWord(
+        text,
+        WARNING_WORDS
+    );
+
+    if (warningMatch) {
+
+        return {
+            type: "warning",
+            label: "هشدار",
+            icon: "⚠️",
+            reason: `به دلیل وجود عبارت «${warningMatch}»`
+        };
+    }
+
+
+    return {
+        type: "normal",
+        label: "عادی",
+        icon: "ℹ️",
+        reason: "عبارت هشداردهنده یا اضطراری شناسایی نشد"
+    };
+}
+
+
+/* =========================================================
+   نمایش نوع تشخیص داده شده
+   ========================================================= */
+
+function updateDetectedType() {
+
+    const result = detectAlertType(
+        titleInput.value,
+        descriptionInput.value
+    );
+
+    detectedType.className =
+        `detected-type ${result.type}`;
+
+    detectedTypeIcon.textContent =
+        result.icon;
+
+    detectedTypeLabel.textContent =
+        result.label;
+
+    detectedTypeReason.textContent =
+        result.reason;
+
+    return result;
+}
+
+
+/* =========================================================
+   پیام فرم
+   ========================================================= */
+
+function showMessage(message, type = "") {
+
+    formMessage.textContent = message;
+
+    formMessage.className =
+        `message ${type}`;
+
+    if (message) {
+
+        setTimeout(() => {
+
+            formMessage.textContent = "";
+
+            formMessage.className =
+                "message";
+
+        }, 5000);
+    }
+}
+
+
+/* =========================================================
+   API
+   ========================================================= */
+
+async function apiRequest(
+    url,
+    options = {}
+) {
+
     const headers = {
-        Authorization: `Bearer ${ADMIN_TOKEN}`
+        ...(options.headers || {})
     };
 
-    if (json) {
-        headers["Content-Type"] = "application/json";
+
+    if (ADMIN_TOKEN) {
+
+        headers.Authorization =
+            `Bearer ${ADMIN_TOKEN}`;
     }
 
-    return headers;
-}
-
-/* =========================================================
-   Server Status
-   ========================================================= */
-
-function setServerStatus(online, text) {
-    if (!serverStatus) return;
-
-    serverStatus.textContent =
-        text ||
-        (online
-            ? "● سرور آنلاین"
-            : "● سرور آفلاین");
-
-    serverStatus.classList.toggle(
-        "online",
-        online
-    );
-
-    serverStatus.classList.toggle(
-        "offline",
-        !online
-    );
-}
-
-/* =========================================================
-   API Request
-   ========================================================= */
-
-async function apiRequest(url, options = {}) {
-    const response = await fetch(url, options);
 
     if (
-        response.status === 401 ||
-        response.status === 403
+        options.body &&
+        !(options.body instanceof FormData)
     ) {
-        localStorage.removeItem(
-            "warAlertAdminToken"
-        );
 
-        ADMIN_TOKEN = "";
+        headers["Content-Type"] =
+            "application/json";
+    }
+
+
+    const response = await fetch(
+        `${API_BASE}${url}`,
+        {
+            ...options,
+            headers
+        }
+    );
+
+
+    let data = null;
+
+    try {
+
+        data = await response.json();
+
+    } catch {
+
+        data = null;
+    }
+
+
+    if (!response.ok) {
+
+        const message =
+            data?.detail ||
+            data?.message ||
+            `خطای سرور (${response.status})`;
+
+        throw new Error(message);
+    }
+
+
+    return data;
+}
+
+
+/* =========================================================
+   بررسی ورود
+   ========================================================= */
+
+async function checkLogin() {
+
+    if (!ADMIN_TOKEN) {
 
         window.location.href =
             "admin-login.html";
 
-        throw new Error("Unauthorized");
+        return false;
     }
 
-    return response;
-}
-
-/* =========================================================
-   Automatic Alert Type Detection
-   ========================================================= */
-
-function autoDetectAlertType() {
-    const title =
-        titleInput?.value || "";
-
-    const description =
-        descriptionInput?.value || "";
-
-    const text = `${title} ${description}`
-        .toLowerCase()
-        .trim();
-
-    if (!text) {
-        if (typeInput) {
-            typeInput.value = "info";
-        }
-
-        updateDetectedType();
-        return;
-    }
-
-    /*
-     * کلمات مربوط به وضعیت بسیار مهم
-     */
-    const dangerWords = [
-        "فوری",
-        "اضطراری",
-        "خطر فوری",
-        "خطر جدی",
-        "خطر بسیار جدی",
-        "تهدید فوری",
-        "تخلیه فوری",
-        "وضعیت قرمز",
-        "بحران",
-        "وضعیت اضطراری",
-        "critical",
-        "danger",
-        "emergency"
-    ];
-
-    /*
-     * کلمات مربوط به هشدار معمولی
-     */
-    const warningWords = [
-        "هشدار",
-        "احتیاط",
-        "احتمال",
-        "خطر",
-        "مراقب",
-        "توجه",
-        "وضعیت زرد",
-        "اخطار",
-        "warning",
-        "alert"
-    ];
-
-    const hasDanger =
-        dangerWords.some(word =>
-            text.includes(word)
-        );
-
-    const hasWarning =
-        warningWords.some(word =>
-            text.includes(word)
-        );
-
-    /*
-     * اولویت با danger است.
-     */
-    if (hasDanger) {
-        typeInput.value = "danger";
-    } else if (hasWarning) {
-        typeInput.value = "warning";
-    } else {
-        typeInput.value = "info";
-    }
-
-    updateDetectedType();
-}
-
-/* =========================================================
-   Show Detected Type
-   ========================================================= */
-
-function updateDetectedType() {
-    if (!typeInput) return;
-
-    let box =
-        document.getElementById(
-            "detectedType"
-        );
-
-    if (!box) {
-        box = document.createElement("div");
-
-        box.id = "detectedType";
-
-        box.className =
-            "detected-type";
-
-        typeInput.parentElement?.appendChild(box);
-    }
-
-    const type =
-        typeInput.value;
-
-    if (type === "danger") {
-        box.textContent =
-            "🚨 نوع تشخیص داده‌شده: هشدار مهم";
-        box.dataset.type = "danger";
-    } else if (type === "warning") {
-        box.textContent =
-            "⚠️ نوع تشخیص داده‌شده: هشدار";
-        box.dataset.type = "warning";
-    } else {
-        box.textContent =
-            "ℹ️ نوع تشخیص داده‌شده: اطلاعیه عادی";
-        box.dataset.type = "info";
-    }
-}
-
-/* =========================================================
-   Load Alerts
-   ========================================================= */
-
-async function loadAlerts() {
-    if (!checkLogin()) return;
 
     try {
-        setServerStatus(
-            false,
-            "● در حال اتصال..."
+
+        /*
+         * درخواست DELETE به یک ID غیرواقعی:
+         * اگر 404 باشد یعنی توکن معتبر بوده.
+         */
+
+        const response = await fetch(
+            `${API_BASE}/api/admin/alerts/999999999`,
+            {
+                method: "DELETE",
+                headers: {
+                    Authorization:
+                        `Bearer ${ADMIN_TOKEN}`
+                }
+            }
         );
 
+
+        if (
+            response.status === 401 ||
+            response.status === 403
+        ) {
+
+            localStorage.removeItem(
+                "warAlertAdminToken"
+            );
+
+            window.location.href =
+                "admin-login.html";
+
+            return false;
+        }
+
+
+        return true;
+
+    } catch (error) {
+
+        console.error(
+            "Login check error:",
+            error
+        );
+
+        return true;
+    }
+}
+
+
+/* =========================================================
+   وضعیت سرور
+   ========================================================= */
+
+async function checkServer() {
+
+    serverStatus.textContent =
+        "در حال بررسی سرور...";
+
+
+    try {
+
         const response =
-            await apiRequest(
-                `${API_BASE}/api/alerts`,
+            await fetch(
+                `${API_BASE}/api`,
                 {
-                    method: "GET",
-                    headers: authHeaders(),
                     cache: "no-store"
                 }
             );
 
+
         if (!response.ok) {
-            throw new Error(
-                `HTTP ${response.status}`
-            );
+            throw new Error("Server error");
         }
+
 
         const data =
             await response.json();
 
-        alerts =
-            Array.isArray(data)
-                ? data
-                : Array.isArray(data.alerts)
-                    ? data.alerts
-                    : [];
 
-        setServerStatus(
-            true,
-            "● سرور آنلاین"
-        );
+        if (data.status === "ok") {
 
-        renderStats();
-        renderAlerts();
+            serverStatus.textContent =
+                "سرور آنلاین است";
+
+        } else {
+
+            serverStatus.textContent =
+                "سرور پاسخ داد";
+        }
+
+
     } catch (error) {
+
         console.error(
-            "Load alerts error:",
+            "Server status:",
             error
         );
 
-        if (
-            error.message !==
-            "Unauthorized"
-        ) {
-            setServerStatus(
-                false,
-                "● خطا در اتصال"
-            );
-
-            if (alertsList) {
-                alertsList.innerHTML = `
-                    <div class="empty-state">
-                        دریافت اطلاعیه‌ها ناموفق بود.
-                    </div>
-                `;
-            }
-        }
+        serverStatus.textContent =
+            "اتصال به سرور برقرار نیست";
     }
 }
 
+
 /* =========================================================
-   Statistics
+   دریافت اطلاعیه‌ها
    ========================================================= */
 
-function renderStats() {
-    if (totalAlerts) {
-        totalAlerts.textContent =
-            alerts.length;
-    }
+async function loadAlerts() {
 
-    if (dangerAlerts) {
-        dangerAlerts.textContent =
-            alerts.filter(alert => {
-                const type =
-                    String(
-                        alert.type || ""
-                    ).toLowerCase();
+    alertsList.innerHTML = `
+        <div class="loading">
+            در حال دریافت اطلاعیه‌ها...
+        </div>
+    `;
 
-                return (
-                    type === "danger" ||
-                    type === "critical" ||
-                    type === "قرمز"
-                );
-            }).length;
-    }
 
-    if (warningAlerts) {
-        warningAlerts.textContent =
-            alerts.filter(alert => {
-                const type =
-                    String(
-                        alert.type || ""
-                    ).toLowerCase();
+    try {
 
-                return (
-                    type === "warning" ||
-                    type === "warn" ||
-                    type === "زرد"
-                );
-            }).length;
-    }
+        const data =
+            await apiRequest(
+                "/api/alerts"
+            );
 
-    if (verifiedAlerts) {
-        verifiedAlerts.textContent =
-            alerts.filter(alert =>
-                alert.verified === true ||
-                alert.verified === "true"
-            ).length;
+
+        if (Array.isArray(data)) {
+
+            alerts = data;
+
+        } else if (
+            Array.isArray(data.alerts)
+        ) {
+
+            alerts = data.alerts;
+
+        } else {
+
+            alerts = [];
+        }
+
+
+        updateStats();
+
+        renderAlerts();
+
+        serverStatus.textContent =
+            "سرور آنلاین است";
+
+
+    } catch (error) {
+
+        console.error(
+            "Load alerts:",
+            error
+        );
+
+
+        alertsList.innerHTML = `
+            <div class="loading">
+                دریافت اطلاعیه‌ها انجام نشد.
+                <br>
+                ${escapeHTML(error.message)}
+            </div>
+        `;
     }
 }
 
+
 /* =========================================================
-   Render Alerts
+   آمار
+   ========================================================= */
+
+function updateStats() {
+
+    totalAlerts.textContent =
+        alerts.length;
+
+
+    let normal = 0;
+    let warning = 0;
+    let danger = 0;
+
+
+    for (const alert of alerts) {
+
+        const type =
+            alert.type || "normal";
+
+
+        if (type === "danger") {
+
+            danger++;
+
+        } else if (type === "warning") {
+
+            warning++;
+
+        } else {
+
+            normal++;
+        }
+    }
+
+
+    normalAlerts.textContent =
+        normal;
+
+    warningAlerts.textContent =
+        warning;
+
+    dangerAlerts.textContent =
+        danger;
+}
+
+
+/* =========================================================
+   نمایش اطلاعیه‌ها
    ========================================================= */
 
 function renderAlerts() {
-    if (!alertsList) return;
 
-    const search =
-        searchInput?.value
-            .trim()
-            .toLowerCase() || "";
+    const query =
+        normalizeText(
+            searchInput.value
+        );
 
-    const filtered =
-        alerts.filter(alert => {
-            const text = [
-                alert.title,
-                alert.description,
-                alert.city,
-                alert.source,
-                alert.type
-            ]
-                .join(" ")
-                .toLowerCase();
 
-            return text.includes(search);
+    let filtered = alerts;
+
+
+    if (query) {
+
+        filtered = alerts.filter(alert => {
+
+            const text = normalizeText(`
+                ${alert.title || ""}
+                ${alert.description || ""}
+                ${alert.city || ""}
+                ${alert.source || ""}
+            `);
+
+            return text.includes(query);
         });
+    }
+
 
     if (!filtered.length) {
+
         alertsList.innerHTML = `
-            <div class="empty-state">
+            <div class="loading">
                 اطلاعیه‌ای پیدا نشد.
             </div>
         `;
@@ -398,591 +594,641 @@ function renderAlerts() {
         return;
     }
 
-    filtered.sort((a, b) => {
-        const dateA =
-            new Date(
-                a.created_at || 0
-            ).getTime();
-
-        const dateB =
-            new Date(
-                b.created_at || 0
-            ).getTime();
-
-        return dateB - dateA;
-    });
 
     alertsList.innerHTML =
-        filtered
-            .map(createAlertItem)
-            .join("");
+        filtered.map(
+            createAlertCard
+        ).join("");
 }
 
+
 /* =========================================================
-   Create Alert HTML
+   کارت اطلاعیه
    ========================================================= */
 
-function createAlertItem(alert) {
+function createAlertCard(alert) {
+
     const type =
-        String(
-            alert.type || "info"
-        ).toLowerCase();
+        alert.type || "normal";
 
-    let typeText =
-        "اطلاعیه";
 
-    if (
-        type === "danger" ||
-        type === "critical" ||
-        type === "قرمز"
-    ) {
-        typeText =
-            "هشدار مهم";
-    } else if (
-        type === "warning" ||
-        type === "warn" ||
-        type === "زرد"
-    ) {
-        typeText =
-            "هشدار";
+    let typeLabel = "عادی";
+    let icon = "ℹ️";
+
+
+    if (type === "warning") {
+
+        typeLabel = "هشدار";
+        icon = "⚠️";
+
+    } else if (type === "danger") {
+
+        typeLabel = "اضطراری";
+        icon = "🚨";
     }
+
 
     const verified =
         alert.verified === true ||
         alert.verified === "true";
 
+
+    const date =
+        formatDate(
+            alert.created_at ||
+            alert.createdAt ||
+            alert.date
+        );
+
+
     return `
-        <div class="admin-alert-item">
+        <article
+            class="alert-card ${escapeHTML(type)}"
+            data-id="${escapeHTML(alert.id)}"
+        >
 
-            <div class="admin-alert-main">
+            <div class="alert-card-header">
 
-                <div class="admin-alert-top">
-
-                    <span class="badge ${escapeHTML(type)}">
-                        ${escapeHTML(typeText)}
-                    </span>
-
-                    ${
-                        verified
-                            ? `
-                                <span class="verified-badge">
-                                    ✓ تأییدشده
-                                </span>
-                            `
-                            : ""
-                    }
-
+                <div class="alert-type ${escapeHTML(type)}">
+                    ${icon}
+                    ${typeLabel}
                 </div>
 
-                <h3>
-                    ${escapeHTML(
-                        alert.title ||
-                        "بدون عنوان"
-                    )}
-                </h3>
-
-                <p>
-                    ${escapeHTML(
-                        alert.description ||
-                        ""
-                    )}
-                </p>
-
-                <div class="admin-alert-meta">
-
-                    <span>
-                        📍
-                        ${escapeHTML(
-                            alert.city ||
-                            "همه شهرها"
-                        )}
-                    </span>
-
-                    <span>
-                        🕐
-                        ${escapeHTML(
-                            formatDate(
-                                alert.created_at
-                            )
-                        )}
-                    </span>
-
-                    <span>
-                        منبع:
-                        ${escapeHTML(
-                            alert.source ||
-                            "نامشخص"
-                        )}
-                    </span>
-
-                </div>
+                ${
+                    verified
+                        ? `<span class="verified">✓ تأیید شده</span>`
+                        : `<span class="unverified">تأیید نشده</span>`
+                }
 
             </div>
 
-            <div class="admin-alert-actions">
+
+            <h3>
+                ${escapeHTML(alert.title)}
+            </h3>
+
+
+            <p>
+                ${escapeHTML(alert.description)}
+            </p>
+
+
+            <div class="alert-meta">
+
+                <span>
+                    📍 ${escapeHTML(alert.city || "سراسری")}
+                </span>
+
+                ${
+                    alert.source
+                        ? `<span>منبع: ${escapeHTML(alert.source)}</span>`
+                        : ""
+                }
+
+                ${
+                    date
+                        ? `<span>${escapeHTML(date)}</span>`
+                        : ""
+                }
+
+            </div>
+
+
+            <div class="alert-actions">
 
                 <button
-                    type="button"
-                    onclick="editAlert(${Number(alert.id)})"
+                    class="edit-btn"
+                    onclick="editAlert('${escapeHTML(alert.id)}')"
                 >
                     ویرایش
                 </button>
 
                 <button
-                    type="button"
-                    class="danger-button"
-                    onclick="deleteAlert(${Number(alert.id)})"
+                    class="delete-btn"
+                    onclick="deleteAlert('${escapeHTML(alert.id)}')"
                 >
                     حذف
                 </button>
 
             </div>
 
-        </div>
+        </article>
     `;
 }
 
+
 /* =========================================================
-   Save Alert
+   تاریخ
    ========================================================= */
 
-async function saveAlert(event) {
-    event.preventDefault();
+function formatDate(value) {
 
-    if (!checkLogin()) return;
-
-    /*
-     * قبل از ذخیره، دوباره نوع را تشخیص می‌دهیم.
-     */
-    autoDetectAlertType();
-
-    const payload = {
-        type:
-            typeInput?.value ||
-            "info",
-
-        city:
-            cityInput?.value.trim() ||
-            "همه",
-
-        title:
-            titleInput?.value.trim() ||
-            "",
-
-        description:
-            descriptionInput?.value.trim() ||
-            "",
-
-        source:
-            sourceInput?.value.trim() ||
-            "WAR ALERT",
-
-        verified:
-            Boolean(
-                verifiedInput?.checked
-            )
-    };
-
-    if (!payload.title) {
-        alert(
-            "عنوان هشدار را وارد کنید."
-        );
-        return;
+    if (!value) {
+        return "";
     }
 
-    if (!payload.description) {
-        alert(
-            "متن هشدار را وارد کنید."
-        );
-        return;
-    }
 
     try {
-        const isEdit =
-            editingId !== null;
 
-        const url =
-            isEdit
-                ? `${API_BASE}/api/admin/alerts/${editingId}`
-                : `${API_BASE}/api/admin/alerts`;
+        const date =
+            new Date(value);
 
-        const response =
-            await apiRequest(
-                url,
-                {
-                    method:
-                        isEdit
-                            ? "PUT"
-                            : "POST",
 
-                    headers:
-                        authHeaders(true),
-
-                    body:
-                        JSON.stringify(
-                            payload
-                        )
-                }
-            );
-
-        if (!response.ok) {
-            const text =
-                await response.text();
-
-            throw new Error(
-                text ||
-                `HTTP ${response.status}`
-            );
+        if (Number.isNaN(date.getTime())) {
+            return String(value);
         }
 
-        if (alertForm) {
-            alertForm.reset();
-        }
 
-        editingId = null;
-
-        if (alertIdInput) {
-            alertIdInput.value = "";
-        }
-
-        if (cancelButton) {
-            cancelButton.style.display =
-                "none";
-        }
-
-        updateDetectedType();
-
-        await loadAlerts();
-
-        alert(
-            isEdit
-                ? "هشدار با موفقیت ویرایش شد."
-                : "هشدار با موفقیت منتشر شد."
+        return date.toLocaleString(
+            "fa-IR",
+            {
+                year: "numeric",
+                month: "2-digit",
+                day: "2-digit",
+                hour: "2-digit",
+                minute: "2-digit"
+            }
         );
-    } catch (error) {
-        console.error(error);
 
-        alert(
-            "ذخیره هشدار انجام نشد.\n" +
-            error.message
-        );
+    } catch {
+
+        return String(value);
     }
 }
 
+
 /* =========================================================
-   Edit Alert
+   ثبت اطلاعیه
    ========================================================= */
 
-function editAlert(id) {
-    const alertItem =
+alertForm.addEventListener(
+    "submit",
+    async function(event) {
+
+        event.preventDefault();
+
+
+        const title =
+            titleInput.value.trim();
+
+        const description =
+            descriptionInput.value.trim();
+
+        const city =
+            cityInput.value.trim();
+
+        const source =
+            sourceInput.value.trim();
+
+        const verified =
+            verifiedInput.value === "true";
+
+
+        if (!title) {
+
+            showMessage(
+                "عنوان را وارد کنید.",
+                "error"
+            );
+
+            titleInput.focus();
+
+            return;
+        }
+
+
+        if (!description) {
+
+            showMessage(
+                "متن اطلاعیه را وارد کنید.",
+                "error"
+            );
+
+            descriptionInput.focus();
+
+            return;
+        }
+
+
+        if (!city) {
+
+            showMessage(
+                "شهر را وارد کنید.",
+                "error"
+            );
+
+            cityInput.focus();
+
+            return;
+        }
+
+
+        /*
+         * نوع کاملاً خودکار
+         */
+
+        const detected =
+            detectAlertType(
+                title,
+                description
+            );
+
+
+        updateDetectedType();
+
+
+        const payload = {
+
+            city: city,
+
+            title: title,
+
+            description: description,
+
+            source: source,
+
+            verified: verified,
+
+            /*
+             * هیچ انتخاب دستی وجود ندارد.
+             * سیستم خودش type را تعیین می‌کند.
+             */
+            type: detected.type
+        };
+
+
+        saveBtn.disabled = true;
+
+        saveBtn.textContent =
+            editingId
+                ? "در حال ذخیره..."
+                : "در حال ثبت...";
+
+
+        try {
+
+            let result;
+
+
+            if (editingId) {
+
+                result =
+                    await apiRequest(
+                        `/api/admin/alerts/${encodeURIComponent(editingId)}`,
+                        {
+                            method: "PUT",
+                            body: JSON.stringify(payload)
+                        }
+                    );
+
+
+                showMessage(
+                    `اطلاعیه با نوع «${detected.label}» بروزرسانی شد.`,
+                    "success"
+                );
+
+            } else {
+
+                result =
+                    await apiRequest(
+                        "/api/admin/alerts",
+                        {
+                            method: "POST",
+                            body: JSON.stringify(payload)
+                        }
+                    );
+
+
+                showMessage(
+                    `اطلاعیه با نوع «${detected.label}» ثبت شد.`,
+                    "success"
+                );
+            }
+
+
+            resetForm();
+
+            await loadAlerts();
+
+
+        } catch (error) {
+
+            console.error(
+                "Save alert:",
+                error
+            );
+
+
+            showMessage(
+                error.message ||
+                "ثبت اطلاعیه انجام نشد.",
+                "error"
+            );
+
+
+        } finally {
+
+            saveBtn.disabled = false;
+
+            saveBtn.textContent =
+                editingId
+                    ? "ذخیره تغییرات"
+                    : "ثبت اطلاعیه";
+        }
+    }
+);
+
+
+/* =========================================================
+   تشخیص لحظه‌ای هنگام تایپ
+   ========================================================= */
+
+titleInput.addEventListener(
+    "input",
+    updateDetectedType
+);
+
+descriptionInput.addEventListener(
+    "input",
+    updateDetectedType
+);
+
+
+/* =========================================================
+   ویرایش
+   ========================================================= */
+
+window.editAlert = function(id) {
+
+    const alert =
         alerts.find(
-            alert =>
-                Number(alert.id) ===
-                Number(id)
+            item => String(item.id) === String(id)
         );
 
-    if (!alertItem) {
-        alert(
-            "هشدار پیدا نشد."
+
+    if (!alert) {
+
+        showMessage(
+            "اطلاعیه پیدا نشد.",
+            "error"
         );
+
         return;
     }
 
+
     editingId =
-        Number(alertItem.id);
+        String(alert.id);
 
-    if (alertIdInput) {
-        alertIdInput.value =
-            alertItem.id;
-    }
 
-    if (typeInput) {
-        typeInput.value =
-            alertItem.type ||
-            "info";
-    }
+    alertIdInput.value =
+        String(alert.id);
 
-    if (cityInput) {
-        cityInput.value =
-            alertItem.city ||
-            "همه";
-    }
 
-    if (titleInput) {
-        titleInput.value =
-            alertItem.title ||
-            "";
-    }
+    cityInput.value =
+        alert.city || "";
 
-    if (descriptionInput) {
-        descriptionInput.value =
-            alertItem.description ||
-            "";
-    }
 
-    if (sourceInput) {
-        sourceInput.value =
-            alertItem.source ||
-            "";
-    }
+    titleInput.value =
+        alert.title || "";
 
-    if (verifiedInput) {
-        verifiedInput.checked =
-            alertItem.verified === true ||
-            alertItem.verified === "true";
-    }
+
+    descriptionInput.value =
+        alert.description || "";
+
+
+    sourceInput.value =
+        alert.source || "";
+
+
+    verifiedInput.value =
+        (
+            alert.verified === true ||
+            alert.verified === "true"
+        )
+            ? "true"
+            : "false";
+
+
+    /*
+     * نوع ذخیره‌شده را نادیده می‌گیریم.
+     * دوباره از روی متن تشخیص می‌دهیم.
+     */
 
     updateDetectedType();
 
-    if (cancelButton) {
-        cancelButton.style.display =
-            "inline-flex";
-    }
+
+    formTitle.textContent =
+        "ویرایش اطلاعیه";
+
+
+    saveBtn.textContent =
+        "ذخیره تغییرات";
+
+
+    cancelEditBtn.classList.remove(
+        "hidden"
+    );
+
 
     window.scrollTo({
         top: 0,
         behavior: "smooth"
     });
-}
+};
+
 
 /* =========================================================
-   Delete Alert
+   حذف
    ========================================================= */
 
-async function deleteAlert(id) {
-    if (!checkLogin()) return;
+window.deleteAlert = async function(id) {
+
+    const alert =
+        alerts.find(
+            item => String(item.id) === String(id)
+        );
+
+
+    if (!alert) {
+        return;
+    }
+
 
     const confirmed =
         confirm(
-            "آیا از حذف این هشدار مطمئن هستید؟"
+            `اطلاعیه «${alert.title}» حذف شود؟`
         );
 
-    if (!confirmed) return;
+
+    if (!confirmed) {
+        return;
+    }
+
 
     try {
-        const response =
-            await apiRequest(
-                `${API_BASE}/api/admin/alerts/${id}`,
-                {
-                    method: "DELETE",
-                    headers: authHeaders()
-                }
-            );
 
-        if (!response.ok) {
-            const text =
-                await response.text();
+        await apiRequest(
+            `/api/admin/alerts/${encodeURIComponent(id)}`,
+            {
+                method: "DELETE"
+            }
+        );
 
-            throw new Error(
-                text ||
-                `HTTP ${response.status}`
-            );
-        }
+
+        showMessage(
+            "اطلاعیه حذف شد.",
+            "success"
+        );
+
 
         await loadAlerts();
 
-        alert(
-            "هشدار حذف شد."
-        );
-    } catch (error) {
-        console.error(error);
 
-        alert(
-            "حذف هشدار انجام نشد.\n" +
-            error.message
+    } catch (error) {
+
+        console.error(
+            "Delete alert:",
+            error
+        );
+
+
+        showMessage(
+            error.message ||
+            "حذف اطلاعیه انجام نشد.",
+            "error"
         );
     }
-}
+};
+
 
 /* =========================================================
-   Cancel Edit
+   لغو ویرایش
    ========================================================= */
 
-function cancelEdit() {
+cancelEditBtn.addEventListener(
+    "click",
+    function() {
+
+        resetForm();
+
+        window.scrollTo({
+            top: 0,
+            behavior: "smooth"
+        });
+    }
+);
+
+
+/* =========================================================
+   ریست فرم
+   ========================================================= */
+
+function resetForm() {
+
     editingId = null;
 
-    if (alertForm) {
-        alertForm.reset();
-    }
+    alertIdInput.value = "";
 
-    if (alertIdInput) {
-        alertIdInput.value = "";
-    }
+    alertForm.reset();
 
-    if (cancelButton) {
-        cancelButton.style.display =
-            "none";
-    }
+    verifiedInput.value =
+        "false";
+
+
+    formTitle.textContent =
+        "ثبت اطلاعیه جدید";
+
+
+    saveBtn.textContent =
+        "ثبت اطلاعیه";
+
+
+    cancelEditBtn.classList.add(
+        "hidden"
+    );
+
 
     updateDetectedType();
 }
 
-/* =========================================================
-   Logout
-   ========================================================= */
-
-function logout() {
-    localStorage.removeItem(
-        "warAlertAdminToken"
-    );
-
-    ADMIN_TOKEN = "";
-
-    window.location.href =
-        "admin-login.html";
-}
 
 /* =========================================================
-   Helpers
+   جستجو
    ========================================================= */
 
-function escapeHTML(value) {
-    return String(value ?? "")
-        .replace(
-            /&/g,
-            "&amp;"
-        )
-        .replace(
-            /</g,
-            "&lt;"
-        )
-        .replace(
-            />/g,
-            "&gt;"
-        )
-        .replace(
-            /"/g,
-            "&quot;"
-        )
-        .replace(
-            /'/g,
-            "&#039;"
-        );
-}
+searchInput.addEventListener(
+    "input",
+    renderAlerts
+);
 
-function formatDate(value) {
-    if (!value) {
-        return "نامشخص";
-    }
-
-    const date =
-        new Date(value);
-
-    if (
-        Number.isNaN(
-            date.getTime()
-        )
-    ) {
-        return String(value);
-    }
-
-    return date.toLocaleString(
-        "fa-IR",
-        {
-            dateStyle: "short",
-            timeStyle: "short"
-        }
-    );
-}
 
 /* =========================================================
-   Events
+   بروزرسانی
    ========================================================= */
 
-if (alertForm) {
-    alertForm.addEventListener(
-        "submit",
-        saveAlert
-    );
-}
+refreshBtn.addEventListener(
+    "click",
+    async function() {
 
-if (searchInput) {
-    searchInput.addEventListener(
-        "input",
-        renderAlerts
-    );
-}
+        refreshBtn.disabled = true;
 
-if (logoutButton) {
-    logoutButton.addEventListener(
-        "click",
-        logout
-    );
-}
+        refreshBtn.textContent =
+            "در حال بروزرسانی...";
 
-if (cancelButton) {
-    cancelButton.addEventListener(
-        "click",
-        cancelEdit
-    );
-}
 
-/*
- * تشخیص خودکار هنگام نوشتن عنوان
- */
-if (titleInput) {
-    titleInput.addEventListener(
-        "input",
-        autoDetectAlertType
-    );
-}
-
-/*
- * تشخیص خودکار هنگام نوشتن توضیحات
- */
-if (descriptionInput) {
-    descriptionInput.addEventListener(
-        "input",
-        autoDetectAlertType
-    );
-}
-
-/*
- * اگر مدیر نوع را دستی تغییر داد،
- * متن تشخیص داده‌شده نیز به‌روزرسانی می‌شود.
- */
-if (typeInput) {
-    typeInput.addEventListener(
-        "change",
-        updateDetectedType
-    );
-}
-
-/* =========================================================
-   Global Functions
-   ========================================================= */
-
-window.editAlert =
-    editAlert;
-
-window.deleteAlert =
-    deleteAlert;
-
-window.logout =
-    logout;
-
-window.cancelEdit =
-    cancelEdit;
-
-window.loadAlerts =
-    loadAlerts;
-
-window.autoDetectAlertType =
-    autoDetectAlertType;
-
-/* =========================================================
-   Start
-   ========================================================= */
-
-document.addEventListener(
-    "DOMContentLoaded",
-    async () => {
-        if (!checkLogin()) {
-            return;
-        }
-
-        updateDetectedType();
+        await checkServer();
 
         await loadAlerts();
+
+
+        refreshBtn.disabled = false;
+
+        refreshBtn.textContent =
+            "بروزرسانی";
     }
 );
+
+
+/* =========================================================
+   خروج
+   ========================================================= */
+
+logoutBtn.addEventListener(
+    "click",
+    function() {
+
+        localStorage.removeItem(
+            "warAlertAdminToken"
+        );
+
+        window.location.href =
+            "admin-login.html";
+    }
+);
+
+
+/* =========================================================
+   شروع
+   ========================================================= */
+
+async function init() {
+
+    const loggedIn =
+        await checkLogin();
+
+
+    if (!loggedIn) {
+        return;
+    }
+
+
+    updateDetectedType();
+
+    await checkServer();
+
+    await loadAlerts();
+}
+
+
+init();

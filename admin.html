@@ -76,25 +76,33 @@
                 <div class="form-grid">
 
                     <div class="field">
-                        <label for="type">نوع اطلاعیه</label>
-
-                        <select id="type" required>
-                            <option value="info">اطلاعات</option>
-                            <option value="normal">عادی</option>
-                            <option value="warning">هشدار</option>
-                            <option value="danger">اضطراری</option>
-                        </select>
-                    </div>
-
-                    <div class="field">
                         <label for="city">شهر</label>
 
                         <input
                             id="city"
                             type="text"
                             placeholder="مثلاً اصفهان"
+                            maxlength="100"
                             required
                         >
+                    </div>
+
+                    <div class="field">
+                        <label>نوع اطلاعیه</label>
+
+                        <div id="detectedType" class="detected-type info">
+                            <span id="detectedTypeIcon">ℹ️</span>
+
+                            <div>
+                                <strong id="detectedTypeLabel">
+                                    عادی
+                                </strong>
+
+                                <small id="detectedTypeReason">
+                                    نوع اطلاعیه به صورت خودکار تشخیص داده می‌شود.
+                                </small>
+                            </div>
+                        </div>
                     </div>
 
                 </div>
@@ -131,6 +139,7 @@
                         <input
                             id="source"
                             type="text"
+                            maxlength="200"
                             placeholder="مثلاً سامانه رسمی"
                         >
                     </div>
