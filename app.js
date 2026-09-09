@@ -1,1115 +1,494 @@
 "use strict";
 
-/*
-==================================================
- WAR ALERT
- app.js
- نسخه 1.1.0
-==================================================
-*/
+/* =========================================================
+   WAR ALERT - PUBLIC APP
+   Connected to online FastAPI server
+   ========================================================= */
 
-document.addEventListener("DOMContentLoaded", () => {
+const API_BASE = "https://war-alert.onrender.com";
 
-    // ==================================================
-    // تنظیمات
-    // ==================================================
+const alertsContainer = document.getElementById("alerts");
+const citySelect = document.getElementById("city");
+const refreshButton = document.getElementById("refresh");
+const notificationButton = document.getElementById("notifications");
+const connectionStatus = document.getElementById("connectionStatus");
+const lastUpdate = document.getElementById("lastUpdate");
 
-    const APP_VERSION = "1.1.0";
+let currentCity = localStorage.getItem("warAlertCity") || "همه";
+let notificationsEnabled =
+    localStorage.getItem("warAlertNotifications") === "true";
 
-    const API_BASE = "https://war-alert.onrender.com";
+let previousAlertIds = new Set();
 
-    let currentCity =
-        localStorage.getItem("warAlertCity") || "";
+/* =========================================================
+   Helpers
+   ========================================================= */
 
-    let notificationEnabled =
-        localStorage.getItem("warAlertNotifications") === "true";
+function escapeHTML(value) {
+    return String(value ?? "")
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;")
+        .replace(/"/g, "&quot;")
+        .replace(/'/g, "&#039;");
+}
 
-    let serverAlerts = [];
+function formatDate(value) {
+    if (!value) return "نامشخص";
 
-    let dataUpdatedAt = null;
+    const date = new Date(value);
 
-
-    // ==================================================
-    // عناصر صفحه
-    // ==================================================
-
-    const selectedCity =
-        document.getElementById("selectedCity");
-
-    const changeCityBtn =
-        document.getElementById("changeCityBtn");
-
-    const cityModal =
-        document.getElementById("cityModal");
-
-    const closeModal =
-        document.getElementById("closeModal");
-
-    const cityButtons =
-        document.querySelectorAll(".city-btn");
-
-    const refreshBtn =
-        document.getElementById("refreshBtn");
-
-    const notificationBtn =
-        document.getElementById("notificationBtn");
-
-    const alertsList =
-        document.getElementById("alertsList");
-
-    const statusTitle =
-        document.getElementById("statusTitle");
-
-    const statusDescription =
-        document.getElementById("statusDescription");
-
-    const statusCard =
-        document.querySelector(".status-card");
-
-    const statusIcon =
-        document.querySelector(".status-icon");
-
-    const toast =
-        document.getElementById("toast");
-
-
-    // ==================================================
-    // Toast
-    // ==================================================
-
-    let toastTimer = null;
-
-
-    function showToast(message) {
-
-        if (!toast) return;
-
-        toast.textContent = message;
-
-        toast.classList.add("show");
-
-        clearTimeout(toastTimer);
-
-        toastTimer = setTimeout(() => {
-
-            toast.classList.remove("show");
-
-        }, 2500);
-
+    if (Number.isNaN(date.getTime())) {
+        return String(value);
     }
 
+    return date.toLocaleString("fa-IR", {
+        dateStyle: "short",
+        timeStyle: "short"
+    });
+}
 
-    // ==================================================
-    // HTML امن
-    // ==================================================
+function setConnection(online, text) {
+    if (!connectionStatus) return;
 
-    function escapeHTML(value) {
+    connectionStatus.textContent =
+        text || (online ? "● متصل" : "● قطع");
 
-        return String(value ?? "")
-            .replace(/&/g, "&amp;")
-            .replace(/</g, "&lt;")
-            .replace(/>/g, "&gt;")
-            .replace(/"/g, "&quot;")
-            .replace(/'/g, "&#039;");
+    connectionStatus.classList.toggle("online", online);
+    connectionStatus.classList.toggle("offline", !online);
+}
 
+function showLoading() {
+    if (!alertsContainer) return;
+
+    alertsContainer.innerHTML = `
+        <div class="empty-state">
+            <div class="loading-spinner"></div>
+            <p>در حال دریافت اطلاعیه‌ها...</p>
+        </div>
+    `;
+}
+
+function showEmpty() {
+    if (!alertsContainer) return;
+
+    alertsContainer.innerHTML = `
+        <div class="empty-state">
+            <div class="empty-icon">✓</div>
+            <h3>اطلاعیه‌ای وجود ندارد</h3>
+            <p>در حال حاضر هشدار فعالی برای نمایش وجود ندارد.</p>
+        </div>
+    `;
+}
+
+function showError(message) {
+    if (!alertsContainer) return;
+
+    alertsContainer.innerHTML = `
+        <div class="empty-state error-state">
+            <div class="empty-icon">!</div>
+            <h3>خطا در دریافت اطلاعات</h3>
+            <p>${escapeHTML(message)}</p>
+            <button class="retry-button" onclick="loadAlerts()">
+                تلاش دوباره
+            </button>
+        </div>
+    `;
+}
+
+/* =========================================================
+   Notifications
+   ========================================================= */
+
+async function enableNotifications() {
+    if (!("Notification" in window)) {
+        alert("مرورگر شما از اعلان پشتیبانی نمی‌کند.");
+        return;
     }
 
+    try {
+        const permission = await Notification.requestPermission();
 
-    // ==================================================
-    // شهر
-    // ==================================================
+        if (permission === "granted") {
+            notificationsEnabled = true;
+            localStorage.setItem("warAlertNotifications", "true");
 
-    function updateCityUI() {
+            updateNotificationButton();
 
-        if (!selectedCity) return;
+            new Notification("WAR ALERT", {
+                body: "اعلان‌ها فعال شدند."
+            });
+        } else {
+            notificationsEnabled = false;
+            localStorage.setItem("warAlertNotifications", "false");
 
-        selectedCity.textContent =
-            currentCity || "انتخاب نشده";
+            updateNotificationButton();
+        }
+    } catch (error) {
+        console.error(error);
+    }
+}
 
+function disableNotifications() {
+    notificationsEnabled = false;
+    localStorage.setItem("warAlertNotifications", "false");
+    updateNotificationButton();
+}
+
+function updateNotificationButton() {
+    if (!notificationButton) return;
+
+    if (notificationsEnabled) {
+        notificationButton.textContent = "🔔 اعلان‌ها فعال";
+        notificationButton.classList.add("active");
+    } else {
+        notificationButton.textContent = "🔕 فعال‌کردن اعلان";
+        notificationButton.classList.remove("active");
+    }
+}
+
+function notifyNewAlert(alert) {
+    if (!notificationsEnabled) return;
+
+    if (!("Notification" in window)) return;
+
+    if (Notification.permission !== "granted") return;
+
+    const title =
+        alert.title ||
+        "هشدار جدید WAR ALERT";
+
+    const body =
+        alert.description ||
+        "یک اطلاعیه جدید منتشر شده است.";
+
+    try {
+        new Notification(title, {
+            body: body,
+            tag: `war-alert-${alert.id}`
+        });
+    } catch (error) {
+        console.error("Notification error:", error);
+    }
+}
+
+/* =========================================================
+   Cities
+   ========================================================= */
+
+async function loadCities() {
+    if (!citySelect) return;
+
+    try {
+        const response = await fetch(`${API_BASE}/api/cities`, {
+            cache: "no-store"
+        });
+
+        if (!response.ok) {
+            throw new Error("خطا در دریافت شهرها");
+        }
+
+        const cities = await response.json();
+
+        citySelect.innerHTML = `
+            <option value="همه">همه شهرها</option>
+        `;
+
+        if (Array.isArray(cities)) {
+            cities.forEach(city => {
+                if (!city) return;
+
+                const option = document.createElement("option");
+                option.value = city;
+                option.textContent = city;
+
+                citySelect.appendChild(option);
+            });
+        }
+
+        const exists = [...citySelect.options].some(
+            option => option.value === currentCity
+        );
+
+        if (exists) {
+            citySelect.value = currentCity;
+        } else {
+            currentCity = "همه";
+            citySelect.value = "همه";
+            localStorage.setItem("warAlertCity", "همه");
+        }
+    } catch (error) {
+        console.error("Cities error:", error);
+
+        citySelect.innerHTML = `
+            <option value="همه">همه شهرها</option>
+        `;
+
+        citySelect.value = "همه";
+    }
+}
+
+/* =========================================================
+   Load Alerts
+   ========================================================= */
+
+async function loadAlerts() {
+    showLoading();
+    setConnection(false, "● در حال اتصال...");
+
+    try {
+        let url;
+
+        if (currentCity && currentCity !== "همه") {
+            url =
+                `${API_BASE}/api/alerts/city/` +
+                encodeURIComponent(currentCity);
+        } else {
+            url = `${API_BASE}/api/alerts`;
+        }
+
+        const response = await fetch(url, {
+            method: "GET",
+            cache: "no-store"
+        });
+
+        if (!response.ok) {
+            throw new Error(
+                `Server returned ${response.status}`
+            );
+        }
+
+        const data = await response.json();
+
+        let alerts = [];
+
+        if (Array.isArray(data)) {
+            alerts = data;
+        } else if (Array.isArray(data.alerts)) {
+            alerts = data.alerts;
+        }
+
+        setConnection(true, "● متصل");
+
+        if (lastUpdate) {
+            lastUpdate.textContent =
+                `آخرین بروزرسانی: ${new Date().toLocaleTimeString("fa-IR")}`;
+        }
+
+        renderAlerts(alerts);
+    } catch (error) {
+        console.error("Load alerts error:", error);
+
+        setConnection(false, "● اتصال ناموفق");
+
+        showError(
+            "ارتباط با سرور برقرار نشد. اتصال اینترنت و وضعیت سرور را بررسی کنید."
+        );
+    }
+}
+
+/* =========================================================
+   Render Alerts
+   ========================================================= */
+
+function renderAlerts(alerts) {
+    if (!alertsContainer) return;
+
+    if (!alerts.length) {
+        showEmpty();
+        previousAlertIds = new Set();
+        return;
     }
 
+    alerts.sort((a, b) => {
+        const dateA = new Date(a.created_at || a.date || 0).getTime();
+        const dateB = new Date(b.created_at || b.date || 0).getTime();
 
-    function openCityModal() {
+        return dateB - dateA;
+    });
 
-        if (!cityModal) return;
+    const currentIds = new Set();
 
-        cityModal.classList.remove("hidden");
+    alerts.forEach(alert => {
+        if (alert.id !== undefined && alert.id !== null) {
+            currentIds.add(String(alert.id));
+        }
+    });
 
-        document.body.style.overflow =
-            "hidden";
+    if (previousAlertIds.size > 0) {
+        alerts.forEach(alert => {
+            const id = String(alert.id ?? "");
 
+            if (
+                id &&
+                !previousAlertIds.has(id)
+            ) {
+                notifyNewAlert(alert);
+            }
+        });
     }
 
+    previousAlertIds = currentIds;
 
-    function closeCityModal() {
+    alertsContainer.innerHTML = alerts
+        .map(alert => createAlertHTML(alert))
+        .join("");
+}
 
-        if (!cityModal) return;
+function createAlertHTML(alert) {
+    const type = String(alert.type || "info").toLowerCase();
 
-        cityModal.classList.add("hidden");
+    let typeClass = "info";
+    let typeText = "اطلاعیه";
+    let icon = "ℹ️";
 
-        document.body.style.overflow =
-            "";
-
+    if (
+        type === "danger" ||
+        type === "critical" ||
+        type === "قرمز"
+    ) {
+        typeClass = "danger";
+        typeText = "هشدار مهم";
+        icon = "🚨";
+    } else if (
+        type === "warning" ||
+        type === "warn" ||
+        type === "زرد"
+    ) {
+        typeClass = "warning";
+        typeText = "هشدار";
+        icon = "⚠️";
+    } else if (
+        type === "success" ||
+        type === "green" ||
+        type === "سبز"
+    ) {
+        typeClass = "success";
+        typeText = "اطلاعیه";
+        icon = "✅";
     }
 
+    const city =
+        alert.city ||
+        "همه شهرها";
 
-    async function selectCity(city) {
+    const title =
+        alert.title ||
+        "بدون عنوان";
 
-        if (!city) return;
+    const description =
+        alert.description ||
+        "";
 
-        currentCity = city;
+    const source =
+        alert.source ||
+        "منبع نامشخص";
+
+    const verified =
+        alert.verified === true ||
+        alert.verified === "true";
+
+    const createdAt =
+        alert.created_at ||
+        alert.createdAt ||
+        alert.date;
+
+    return `
+        <article class="alert-card ${typeClass}">
+            <div class="alert-header">
+                <div class="alert-type ${typeClass}">
+                    <span>${icon}</span>
+                    <span>${escapeHTML(typeText)}</span>
+                </div>
+
+                ${
+                    verified
+                        ? `
+                            <div class="verified">
+                                ✓ تأییدشده
+                            </div>
+                        `
+                        : ""
+                }
+            </div>
+
+            <h2 class="alert-title">
+                ${escapeHTML(title)}
+            </h2>
+
+            <p class="alert-description">
+                ${escapeHTML(description)}
+            </p>
+
+            <div class="alert-meta">
+                <span>
+                    📍 ${escapeHTML(city)}
+                </span>
+
+                <span>
+                    🕐 ${escapeHTML(formatDate(createdAt))}
+                </span>
+            </div>
+
+            <div class="alert-source">
+                منبع: ${escapeHTML(source)}
+            </div>
+        </article>
+    `;
+}
+
+/* =========================================================
+   Events
+   ========================================================= */
+
+if (citySelect) {
+    citySelect.addEventListener("change", () => {
+        currentCity = citySelect.value;
 
         localStorage.setItem(
             "warAlertCity",
             currentCity
         );
 
-        updateCityUI();
+        previousAlertIds = new Set();
 
-        closeCityModal();
-
-        renderAlerts();
-
-        updateStatus();
-
-        showToast(
-            `منطقه «${city}» انتخاب شد`
-        );
-
-    }
-
-
-    // ==================================================
-    // رویدادهای شهر
-    // ==================================================
-
-    if (changeCityBtn) {
-
-        changeCityBtn.addEventListener(
-            "click",
-            openCityModal
-        );
-
-    }
-
-
-    if (closeModal) {
-
-        closeModal.addEventListener(
-            "click",
-            closeCityModal
-        );
-
-    }
-
-
-    cityButtons.forEach(button => {
-
-        button.addEventListener(
-            "click",
-            () => {
-
-                const city =
-                    button.dataset.city;
-
-                selectCity(city);
-
-            }
-        );
-
+        loadAlerts();
     });
+}
 
+if (refreshButton) {
+    refreshButton.addEventListener("click", () => {
+        previousAlertIds = new Set();
+        loadAlerts();
+    });
+}
 
-    if (cityModal) {
-
-        cityModal.addEventListener(
-            "click",
-            event => {
-
-                if (
-                    event.target === cityModal
-                ) {
-
-                    closeCityModal();
-
-                }
-
-            }
-        );
-
-    }
-
-
-    document.addEventListener(
-        "keydown",
-        event => {
-
-            if (event.key === "Escape") {
-
-                closeCityModal();
-
-            }
-
+if (notificationButton) {
+    notificationButton.addEventListener("click", async () => {
+        if (notificationsEnabled) {
+            disableNotifications();
+        } else {
+            await enableNotifications();
         }
-    );
+    });
+}
 
+/* =========================================================
+   Automatic Refresh
+   ========================================================= */
 
-    // ==================================================
-    // دریافت اطلاعات از API
-    // ==================================================
+setInterval(() => {
+    loadAlerts();
+}, 30000);
 
-    async function fetchAlerts() {
+/* =========================================================
+   Start
+   ========================================================= */
 
-        try {
-
-            const url = currentCity
-                ? `${API_BASE}/api/alerts/${encodeURIComponent(currentCity)}`
-                : `${API_BASE}/api/alerts`;
-
-
-            const response =
-                await fetch(url, {
-                    method: "GET",
-                    cache: "no-store"
-                });
-
-
-            if (!response.ok) {
-
-                throw new Error(
-                    `HTTP ${response.status}`
-                );
-
-            }
-
-
-            const data =
-                await response.json();
-
-
-            if (
-                !data ||
-                !Array.isArray(data.alerts)
-            ) {
-
-                throw new Error(
-                    "ساختار اطلاعات API نامعتبر است."
-                );
-
-            }
-
-
-            serverAlerts =
-                data.alerts;
-
-            dataUpdatedAt =
-                data.updatedAt || null;
-
-
-            renderAlerts();
-
-            updateStatus();
-
-            updateDataTime();
-
-
-            return true;
-
-        }
-
-        catch (error) {
-
-            console.error(
-                "WAR ALERT API ERROR:",
-                error
-            );
-
-
-            /*
-             * اگر اتصال به سرور قطع باشد،
-             * داده‌های قبلی روی صفحه باقی می‌مانند.
-             */
-
-            if (
-                !serverAlerts ||
-                serverAlerts.length === 0
-            ) {
-
-                renderOfflineMessage();
-
-            }
-
-
-            return false;
-
-        }
-
-    }
-
-
-    // ==================================================
-    // نمایش زمان اطلاعات
-    // ==================================================
-
-    function updateDataTime() {
-
-        if (!dataUpdatedAt) return;
-
-        console.log(
-            "آخرین بروزرسانی داده:",
-            dataUpdatedAt
-        );
-
-    }
-
-
-    // ==================================================
-    // دریافت اطلاعیه‌های شهر
-    // ==================================================
-
-    function getCurrentAlerts() {
-
-        if (!Array.isArray(serverAlerts)) {
-
-            return [];
-
-        }
-
-
-        if (!currentCity) {
-
-            return serverAlerts;
-
-        }
-
-
-        return serverAlerts.filter(
-            alert =>
-                alert.city === "همه" ||
-                alert.city === currentCity
-        );
-
-    }
-
-
-    // ==================================================
-    // ساخت کارت اطلاعیه
-    // ==================================================
-
-    function createAlertCard(alert) {
-
-        const article =
-            document.createElement("article");
-
-        article.className =
-            "alert-card";
-
-
-        // نوع اطلاعیه
-
-        let badgeClass = "info";
-
-        let badgeText = "اطلاعیه";
-
-
-        if (alert.type === "normal") {
-
-            badgeClass =
-                "normal-badge";
-
-            badgeText =
-                "عادی";
-
-        }
-
-        else if (alert.type === "warning") {
-
-            badgeClass =
-                "warning-badge";
-
-            badgeText =
-                "هشدار";
-
-        }
-
-        else if (alert.type === "danger") {
-
-            badgeClass =
-                "danger-badge";
-
-            badgeText =
-                "هشدار فوری";
-
-        }
-
-
-        // وضعیت تأیید
-
-        const verifiedText =
-            alert.verified === true
-                ? "✓ تأییدشده"
-                : "آزمایشی";
-
-
-        article.innerHTML = `
-
-            <div class="alert-top">
-
-                <span class="alert-badge ${badgeClass}">
-                    ${escapeHTML(badgeText)}
-                </span>
-
-                <span class="alert-time">
-                    ${escapeHTML(
-                        alert.time || ""
-                    )}
-                </span>
-
-            </div>
-
-
-            <h3>
-                ${escapeHTML(
-                    alert.title ||
-                    "بدون عنوان"
-                )}
-            </h3>
-
-
-            <p>
-                ${escapeHTML(
-                    alert.description ||
-                    ""
-                )}
-            </p>
-
-
-            <div class="alert-source">
-
-                منبع:
-                ${escapeHTML(
-                    alert.source ||
-                    "نامشخص"
-                )}
-
-                <span>
-                    ·
-                    ${escapeHTML(
-                        verifiedText
-                    )}
-                </span>
-
-            </div>
-
-        `;
-
-
-        return article;
-
-    }
-
-
-    // ==================================================
-    // نمایش اطلاعیه‌ها
-    // ==================================================
-
-    function renderAlerts() {
-
-        if (!alertsList) return;
-
-
-        alertsList.innerHTML = "";
-
-
-        const alerts =
-            getCurrentAlerts();
-
-
-        // هیچ اطلاعیه‌ای وجود ندارد
-
-        if (
-            !alerts ||
-            alerts.length === 0
-        ) {
-
-            const empty =
-                document.createElement("div");
-
-
-            empty.className =
-                "alert-card";
-
-
-            empty.innerHTML = `
-
-                <div class="alert-top">
-
-                    <span class="alert-badge normal-badge">
-                        عادی
-                    </span>
-
-                    <span class="alert-time">
-                        اکنون
-                    </span>
-
-                </div>
-
-
-                <h3>
-                    اطلاعیه‌ای وجود ندارد
-                </h3>
-
-
-                <p>
-                    در حال حاضر اطلاعیه‌ای برای
-                    منطقه انتخاب‌شده ثبت نشده است.
-                </p>
-
-            `;
-
-
-            alertsList.appendChild(empty);
-
-            return;
-
-        }
-
-
-        // نمایش اطلاعیه‌ها
-
-        alerts.forEach(alert => {
-
-            const card =
-                createAlertCard(alert);
-
-            alertsList.appendChild(card);
-
-        });
-
-    }
-
-
-    // ==================================================
-    // حالت بدون اتصال
-    // ==================================================
-
-    function renderOfflineMessage() {
-
-        if (!alertsList) return;
-
-
-        alertsList.innerHTML = `
-
-            <article class="alert-card">
-
-                <div class="alert-top">
-
-                    <span class="alert-badge danger-badge">
-                        اتصال
-                    </span>
-
-                    <span class="alert-time">
-                        اکنون
-                    </span>
-
-                </div>
-
-
-                <h3>
-                    اتصال به سرور برقرار نشد
-                </h3>
-
-
-                <p>
-                    سرور WAR ALERT در دسترس نیست.
-                    ابتدا اجرای server/main.py را بررسی کنید.
-                </p>
-
-
-                <div class="alert-source">
-                    آدرس API:
-                    ${escapeHTML(API_BASE)}
-                </div>
-
-            </article>
-
-        `;
-
-    }
-
-
-    // ==================================================
-    // تعیین وضعیت کلی
-    // ==================================================
-
-    function updateStatus() {
-
-        if (
-            !statusTitle ||
-            !statusDescription
-        ) {
-
-            return;
-
-        }
-
-
-        const alerts =
-            getCurrentAlerts();
-
-
-        /*
-         * فقط هشدارهای تأییدشده
-         * می‌توانند وضعیت اصلی برنامه
-         * را تغییر دهند.
-         */
-
-        const hasDanger =
-            alerts.some(
-                alert =>
-                    alert.type === "danger" &&
-                    alert.verified === true
-            );
-
-
-        const hasWarning =
-            alerts.some(
-                alert =>
-                    alert.type === "warning" &&
-                    alert.verified === true
-            );
-
-
-        // هشدار فوری
-
-        if (hasDanger) {
-
-            statusTitle.textContent =
-                "هشدار فوری";
-
-
-            statusDescription.textContent =
-                `برای ${
-                    currentCity ||
-                    "منطقه انتخابی"
-                } یک هشدار تأییدشده وجود دارد.`;
-
-
-            setStatusStyle("danger");
-
-            return;
-
-        }
-
-
-        // هشدار
-
-        if (hasWarning) {
-
-            statusTitle.textContent =
-                "هشدار";
-
-
-            statusDescription.textContent =
-                `برای ${
-                    currentCity ||
-                    "منطقه انتخابی"
-                } اطلاعیه هشدار تأییدشده وجود دارد.`;
-
-
-            setStatusStyle("warning");
-
-            return;
-
-        }
-
-
-        // وضعیت عادی
-
-        statusTitle.textContent =
-            "وضعیت عادی";
-
-
-        if (currentCity) {
-
-            statusDescription.textContent =
-                `در حال حاضر هشدار تأییدشده‌ای برای ${currentCity} ثبت نشده است.`;
-
-        }
-
-        else {
-
-            statusDescription.textContent =
-                "برای دریافت اطلاعیه‌های مربوط به منطقه، ابتدا شهر خود را انتخاب کنید.";
-
-        }
-
-
-        setStatusStyle("normal");
-
-    }
-
-
-    // ==================================================
-    // ظاهر وضعیت
-    // ==================================================
-
-    function setStatusStyle(type) {
-
-        if (
-            !statusCard ||
-            !statusIcon
-        ) {
-
-            return;
-
-        }
-
-
-        statusCard.classList.remove(
-            "normal",
-            "warning",
-            "danger"
-        );
-
-
-        statusCard.classList.add(type);
-
-
-        if (type === "danger") {
-
-            statusIcon.textContent =
-                "⚠";
-
-        }
-
-        else if (type === "warning") {
-
-            statusIcon.textContent =
-                "!";
-
-        }
-
-        else {
-
-            statusIcon.textContent =
-                "✓";
-
-        }
-
-    }
-
-
-    // ==================================================
-    // بروزرسانی دستی
-    // ==================================================
-
-    if (refreshBtn) {
-
-        refreshBtn.addEventListener(
-            "click",
-            async () => {
-
-                if (refreshBtn.disabled) {
-                    return;
-                }
-
-
-                refreshBtn.disabled =
-                    true;
-
-
-                const oldText =
-                    refreshBtn.textContent;
-
-
-                refreshBtn.textContent =
-                    "در حال بروزرسانی...";
-
-
-                const success =
-                    await fetchAlerts();
-
-
-                refreshBtn.disabled =
-                    false;
-
-
-                refreshBtn.textContent =
-                    oldText;
-
-
-                if (success) {
-
-                    showToast(
-                        "اطلاعات از سرور دریافت شد"
-                    );
-
-                }
-
-                else {
-
-                    showToast(
-                        "اتصال به سرور برقرار نشد"
-                    );
-
-                }
-
-            }
-        );
-
-    }
-
-
-    // ==================================================
-    // اعلان‌های مرورگر
-    // ==================================================
-
-    function updateNotificationButton() {
-
-        if (!notificationBtn) return;
-
-
-        if (
-            notificationEnabled &&
-            "Notification" in window &&
-            Notification.permission ===
-                "granted"
-        ) {
-
-            notificationBtn.textContent =
-                "فعال است";
-
-        }
-
-        else {
-
-            notificationBtn.textContent =
-                "فعال‌سازی";
-
-        }
-
-    }
-
-
-    async function enableNotifications() {
-
-        if (
-            !("Notification" in window)
-        ) {
-
-            showToast(
-                "مرورگر شما از اعلان پشتیبانی نمی‌کند"
-            );
-
-            return;
-
-        }
-
-
-        try {
-
-            const permission =
-                await Notification.requestPermission();
-
-
-            if (permission === "granted") {
-
-                notificationEnabled =
-                    true;
-
-
-                localStorage.setItem(
-                    "warAlertNotifications",
-                    "true"
-                );
-
-
-                updateNotificationButton();
-
-
-                showToast(
-                    "اعلان‌ها فعال شدند"
-                );
-
-
-                new Notification(
-                    "هشدار",
-                    {
-                        body:
-                            "اعلان‌های برنامه فعال شدند."
-                    }
-                );
-
-            }
-
-            else {
-
-                notificationEnabled =
-                    false;
-
-
-                localStorage.setItem(
-                    "warAlertNotifications",
-                    "false"
-                );
-
-
-                updateNotificationButton();
-
-
-                showToast(
-                    "اجازه اعلان داده نشد"
-                );
-
-            }
-
-        }
-
-        catch (error) {
-
-            console.error(
-                "Notification error:",
-                error
-            );
-
-
-            showToast(
-                "فعال‌سازی اعلان انجام نشد"
-            );
-
-        }
-
-    }
-
-
-    if (notificationBtn) {
-
-        notificationBtn.addEventListener(
-            "click",
-            enableNotifications
-        );
-
-    }
-
-
-    // ==================================================
-    // وضعیت اینترنت
-    // ==================================================
-
-    function updateConnectionStatus() {
-
-        const connection =
-            document.querySelector(
-                ".connection"
-            );
-
-
-        if (!connection) return;
-
-
-        if (navigator.onLine) {
-
-            connection.innerHTML = `
-                <span class="connection-dot"></span>
-                آنلاین
-            `;
-
-        }
-
-        else {
-
-            connection.innerHTML = `
-                <span
-                    class="connection-dot"
-                    style="background:#dc2626;"
-                ></span>
-                آفلاین
-            `;
-
-        }
-
-    }
-
-
-    window.addEventListener(
-        "online",
-        () => {
-
-            updateConnectionStatus();
-
-            showToast(
-                "اتصال اینترنت برقرار شد"
-            );
-
-            fetchAlerts();
-
-        }
-    );
-
-
-    window.addEventListener(
-        "offline",
-        () => {
-
-            updateConnectionStatus();
-
-            showToast(
-                "اتصال اینترنت قطع شد"
-            );
-
-        }
-    );
-
-
-    // ==================================================
-    // بروزرسانی خودکار
-    // ==================================================
-
-    setInterval(
-        () => {
-
-            if (navigator.onLine) {
-
-                fetchAlerts();
-
-            }
-
-        },
-        30000
-    );
-
-
-    // ==================================================
-    // شروع برنامه
-    // ==================================================
-
-    updateCityUI();
-
-    updateConnectionStatus();
-
+document.addEventListener("DOMContentLoaded", async () => {
     updateNotificationButton();
 
-    renderAlerts();
+    await loadCities();
 
-    updateStatus();
-
-
-    // دریافت اولیه از سرور
-
-    fetchAlerts();
-
-
-    // ==================================================
-    // Console
-    // ==================================================
-
-    console.log(
-        `WAR ALERT v${APP_VERSION} started successfully`
-    );
-
-    console.log(
-        `API: ${API_BASE}`
-    );
-
+    await loadAlerts();
 });

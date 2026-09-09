@@ -1,259 +1,135 @@
 "use strict";
 
-/*
-=========================================================
-WAR ALERT
-ADMIN LOGIN
-=========================================================
-*/
+/* =========================================================
+   WAR ALERT - ADMIN LOGIN
+   ========================================================= */
 
 const API_BASE = "https://war-alert.onrender.com";
 
-const loginForm =
-    document.getElementById("loginForm");
+const loginForm = document.getElementById("loginForm");
+const tokenInput = document.getElementById("token");
+const loginButton = document.getElementById("loginButton");
+const messageBox = document.getElementById("message");
 
-const tokenInput =
-    document.getElementById("token");
+function showMessage(message, type = "error") {
+    if (!messageBox) return;
 
-const loginBtn =
-    document.getElementById("loginBtn");
-
-const message =
-    document.getElementById("message");
-
-
-/*
-=========================================================
-MESSAGE
-=========================================================
-*/
-
-function showMessage(text, type = "") {
-
-    message.textContent = text;
-
-    message.className =
-        type
-            ? `message ${type}`
-            : "message";
+    messageBox.textContent = message;
+    messageBox.className = `message ${type}`;
 }
 
+function setLoading(loading) {
+    if (!loginButton) return;
 
-/*
-=========================================================
-CHECK EXISTING LOGIN
-=========================================================
-*/
+    loginButton.disabled = loading;
 
-const savedToken =
-    localStorage.getItem("warAlertAdminToken");
-
-if (savedToken) {
-
-    tokenInput.value = savedToken;
-
+    loginButton.textContent = loading
+        ? "در حال بررسی..."
+        : "ورود به پنل مدیریت";
 }
 
+async function checkToken(token) {
+    /*
+     * برای بررسی اعتبار توکن، درخواست حذف یک ID غیرواقعی
+     * ارسال می‌کنیم.
+     *
+     * 404 = توکن معتبر است ولی هشدار وجود ندارد.
+     * 401/403 = توکن اشتباه است.
+     */
 
-/*
-=========================================================
-LOGIN
-=========================================================
-*/
+    const response = await fetch(
+        `${API_BASE}/api/admin/alerts/999999999`,
+        {
+            method: "DELETE",
+            headers: {
+                Authorization: `Bearer ${token}`
+            }
+        }
+    );
 
-loginForm.addEventListener(
-    "submit",
-    async function (event) {
+    if (response.status === 404) {
+        return true;
+    }
 
+    if (
+        response.status === 401 ||
+        response.status === 403
+    ) {
+        return false;
+    }
+
+    /*
+     * اگر سرور برای ID ساختگی پاسخ دیگری داد،
+     * برای احتیاط معتبر در نظر نمی‌گیریم.
+     */
+    return false;
+}
+
+if (loginForm) {
+    loginForm.addEventListener("submit", async event => {
         event.preventDefault();
 
         const token =
-            tokenInput.value.trim();
+            tokenInput?.value.trim() || "";
 
         if (!token) {
-
             showMessage(
-                "رمز مدیریت را وارد کنید.",
+                "توکن مدیریت را وارد کنید.",
                 "error"
             );
-
             return;
         }
 
-
-        loginBtn.disabled = true;
-
-        loginBtn.textContent =
-            "در حال بررسی...";
-
-        showMessage("");
-
+        setLoading(true);
 
         try {
+            const valid = await checkToken(token);
 
-            /*
-             * ابتدا بررسی می‌کنیم
-             * که سرور فعال باشد.
-             */
-
-            const serverResponse =
-                await fetch(
-                    `${API_BASE}/api`,
-                    {
-                        method: "GET",
-                        headers: {
-                            "Accept":
-                                "application/json"
-                        }
-                    }
-                );
-
-
-            if (!serverResponse.ok) {
-
-                throw new Error(
-                    "SERVER_ERROR"
-                );
-
-            }
-
-
-            /*
-             * برای بررسی توکن،
-             * یک درخواست DELETE به یک ID
-             * غیرواقعی می‌فرستیم.
-             *
-             * اگر پاسخ 404 باشد:
-             * توکن صحیح است ولی آن ID وجود ندارد.
-             */
-
-            const testResponse =
-                await fetch(
-                    `${API_BASE}/api/admin/alerts/999999999`,
-                    {
-                        method: "DELETE",
-
-                        headers: {
-                            "Authorization":
-                                `Bearer ${token}`
-                        }
-                    }
-                );
-
-
-            /*
-             * توکن صحیح
-             */
-
-            if (
-                testResponse.status === 404
-            ) {
-
-                localStorage.setItem(
-                    "warAlertAdminToken",
-                    token
-                );
-
+            if (!valid) {
                 showMessage(
-                    "ورود موفق بود.",
-                    "success"
-                );
-
-                setTimeout(
-                    function () {
-
-                        window.location.href =
-                            "admin.html";
-
-                    },
-                    500
-                );
-
-                return;
-            }
-
-
-            /*
-             * توکن اشتباه
-             */
-
-            if (
-                testResponse.status === 401 ||
-                testResponse.status === 403
-            ) {
-
-                localStorage.removeItem(
-                    "warAlertAdminToken"
-                );
-
-                showMessage(
-                    "رمز مدیریت اشتباه است.",
+                    "توکن مدیریت صحیح نیست.",
                     "error"
                 );
 
+                setLoading(false);
                 return;
             }
 
-
-            /*
-             * حالت غیرمنتظره
-             */
-
-            if (testResponse.ok) {
-
-                localStorage.setItem(
-                    "warAlertAdminToken",
-                    token
-                );
-
-                showMessage(
-                    "ورود موفق بود.",
-                    "success"
-                );
-
-                setTimeout(
-                    function () {
-
-                        window.location.href =
-                            "admin.html";
-
-                    },
-                    500
-                );
-
-                return;
-            }
-
-
-            showMessage(
-                "خطا در بررسی رمز مدیریت.",
-                "error"
-            );
-
-        }
-
-        catch (error) {
-
-            console.error(
-                "ADMIN LOGIN ERROR:",
-                error
+            localStorage.setItem(
+                "warAlertAdminToken",
+                token
             );
 
             showMessage(
-                "اتصال به سرور برقرار نشد. ابتدا FastAPI را اجرا کنید.",
+                "ورود موفق بود. در حال انتقال...",
+                "success"
+            );
+
+            setTimeout(() => {
+                window.location.href = "admin.html";
+            }, 500);
+        } catch (error) {
+            console.error(error);
+
+            showMessage(
+                "اتصال به سرور WAR ALERT برقرار نشد.",
                 "error"
             );
 
+            setLoading(false);
         }
+    });
+}
 
-        finally {
+/* =========================================================
+   If already logged in
+   ========================================================= */
 
-            loginBtn.disabled = false;
+document.addEventListener("DOMContentLoaded", () => {
+    const savedToken =
+        localStorage.getItem("warAlertAdminToken");
 
-            loginBtn.textContent =
-                "ورود به پنل مدیریت";
-
-        }
-
+    if (savedToken && tokenInput) {
+        tokenInput.value = "";
     }
-);
+});
