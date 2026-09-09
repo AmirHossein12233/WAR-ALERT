@@ -2,6 +2,7 @@
 
 /* =========================================================
    WAR ALERT - ADMIN PANEL
+   Online API + Automatic Alert Type Detection
    ========================================================= */
 
 const API_BASE = "https://war-alert.onrender.com";
@@ -39,8 +40,17 @@ const sourceInput = document.getElementById("source");
 const verifiedInput = document.getElementById("verified");
 
 /* =========================================================
-   Auth
+   Authentication
    ========================================================= */
+
+function checkLogin() {
+    if (!ADMIN_TOKEN) {
+        window.location.href = "admin-login.html";
+        return false;
+    }
+
+    return true;
+}
 
 function authHeaders(json = false) {
     const headers = {
@@ -54,17 +64,8 @@ function authHeaders(json = false) {
     return headers;
 }
 
-function checkLogin() {
-    if (!ADMIN_TOKEN) {
-        window.location.href = "admin-login.html";
-        return false;
-    }
-
-    return true;
-}
-
 /* =========================================================
-   Status
+   Server Status
    ========================================================= */
 
 function setServerStatus(online, text) {
@@ -88,15 +89,16 @@ function setServerStatus(online, text) {
 }
 
 /* =========================================================
-   API
+   API Request
    ========================================================= */
 
 async function apiRequest(url, options = {}) {
     const response = await fetch(url, options);
 
-    if (response.status === 401 ||
-        response.status === 403) {
-
+    if (
+        response.status === 401 ||
+        response.status === 403
+    ) {
         localStorage.removeItem(
             "warAlertAdminToken"
         );
@@ -113,23 +115,151 @@ async function apiRequest(url, options = {}) {
 }
 
 /* =========================================================
+   Automatic Alert Type Detection
+   ========================================================= */
+
+function autoDetectAlertType() {
+    const title =
+        titleInput?.value || "";
+
+    const description =
+        descriptionInput?.value || "";
+
+    const text = `${title} ${description}`
+        .toLowerCase()
+        .trim();
+
+    if (!text) {
+        if (typeInput) {
+            typeInput.value = "info";
+        }
+
+        updateDetectedType();
+        return;
+    }
+
+    /*
+     * کلمات مربوط به وضعیت بسیار مهم
+     */
+    const dangerWords = [
+        "فوری",
+        "اضطراری",
+        "خطر فوری",
+        "خطر جدی",
+        "خطر بسیار جدی",
+        "تهدید فوری",
+        "تخلیه فوری",
+        "وضعیت قرمز",
+        "بحران",
+        "وضعیت اضطراری",
+        "critical",
+        "danger",
+        "emergency"
+    ];
+
+    /*
+     * کلمات مربوط به هشدار معمولی
+     */
+    const warningWords = [
+        "هشدار",
+        "احتیاط",
+        "احتمال",
+        "خطر",
+        "مراقب",
+        "توجه",
+        "وضعیت زرد",
+        "اخطار",
+        "warning",
+        "alert"
+    ];
+
+    const hasDanger =
+        dangerWords.some(word =>
+            text.includes(word)
+        );
+
+    const hasWarning =
+        warningWords.some(word =>
+            text.includes(word)
+        );
+
+    /*
+     * اولویت با danger است.
+     */
+    if (hasDanger) {
+        typeInput.value = "danger";
+    } else if (hasWarning) {
+        typeInput.value = "warning";
+    } else {
+        typeInput.value = "info";
+    }
+
+    updateDetectedType();
+}
+
+/* =========================================================
+   Show Detected Type
+   ========================================================= */
+
+function updateDetectedType() {
+    if (!typeInput) return;
+
+    let box =
+        document.getElementById(
+            "detectedType"
+        );
+
+    if (!box) {
+        box = document.createElement("div");
+
+        box.id = "detectedType";
+
+        box.className =
+            "detected-type";
+
+        typeInput.parentElement?.appendChild(box);
+    }
+
+    const type =
+        typeInput.value;
+
+    if (type === "danger") {
+        box.textContent =
+            "🚨 نوع تشخیص داده‌شده: هشدار مهم";
+        box.dataset.type = "danger";
+    } else if (type === "warning") {
+        box.textContent =
+            "⚠️ نوع تشخیص داده‌شده: هشدار";
+        box.dataset.type = "warning";
+    } else {
+        box.textContent =
+            "ℹ️ نوع تشخیص داده‌شده: اطلاعیه عادی";
+        box.dataset.type = "info";
+    }
+}
+
+/* =========================================================
    Load Alerts
    ========================================================= */
 
 async function loadAlerts() {
+    if (!checkLogin()) return;
+
     try {
         setServerStatus(
             false,
             "● در حال اتصال..."
         );
 
-        const response = await apiRequest(
-            `${API_BASE}/api/alerts`,
-            {
-                method: "GET",
-                headers: authHeaders()
-            }
-        );
+        const response =
+            await apiRequest(
+                `${API_BASE}/api/alerts`,
+                {
+                    method: "GET",
+                    headers: authHeaders(),
+                    cache: "no-store"
+                }
+            );
 
         if (!response.ok) {
             throw new Error(
@@ -137,13 +267,15 @@ async function loadAlerts() {
             );
         }
 
-        const data = await response.json();
+        const data =
+            await response.json();
 
-        alerts = Array.isArray(data)
-            ? data
-            : Array.isArray(data.alerts)
-                ? data.alerts
-                : [];
+        alerts =
+            Array.isArray(data)
+                ? data
+                : Array.isArray(data.alerts)
+                    ? data.alerts
+                    : [];
 
         setServerStatus(
             true,
@@ -158,7 +290,10 @@ async function loadAlerts() {
             error
         );
 
-        if (error.message !== "Unauthorized") {
+        if (
+            error.message !==
+            "Unauthorized"
+        ) {
             setServerStatus(
                 false,
                 "● خطا در اتصال"
@@ -176,7 +311,7 @@ async function loadAlerts() {
 }
 
 /* =========================================================
-   Stats
+   Statistics
    ========================================================= */
 
 function renderStats() {
@@ -187,10 +322,11 @@ function renderStats() {
 
     if (dangerAlerts) {
         dangerAlerts.textContent =
-            alerts.filter(a => {
+            alerts.filter(alert => {
                 const type =
-                    String(a.type || "")
-                        .toLowerCase();
+                    String(
+                        alert.type || ""
+                    ).toLowerCase();
 
                 return (
                     type === "danger" ||
@@ -202,10 +338,11 @@ function renderStats() {
 
     if (warningAlerts) {
         warningAlerts.textContent =
-            alerts.filter(a => {
+            alerts.filter(alert => {
                 const type =
-                    String(a.type || "")
-                        .toLowerCase();
+                    String(
+                        alert.type || ""
+                    ).toLowerCase();
 
                 return (
                     type === "warning" ||
@@ -217,15 +354,15 @@ function renderStats() {
 
     if (verifiedAlerts) {
         verifiedAlerts.textContent =
-            alerts.filter(a =>
-                a.verified === true ||
-                a.verified === "true"
+            alerts.filter(alert =>
+                alert.verified === true ||
+                alert.verified === "true"
             ).length;
     }
 }
 
 /* =========================================================
-   Render
+   Render Alerts
    ========================================================= */
 
 function renderAlerts() {
@@ -236,19 +373,20 @@ function renderAlerts() {
             .trim()
             .toLowerCase() || "";
 
-    const filtered = alerts.filter(alert => {
-        const text = [
-            alert.title,
-            alert.description,
-            alert.city,
-            alert.source,
-            alert.type
-        ]
-            .join(" ")
-            .toLowerCase();
+    const filtered =
+        alerts.filter(alert => {
+            const text = [
+                alert.title,
+                alert.description,
+                alert.city,
+                alert.source,
+                alert.type
+            ]
+                .join(" ")
+                .toLowerCase();
 
-        return text.includes(search);
-    });
+            return text.includes(search);
+        });
 
     if (!filtered.length) {
         alertsList.innerHTML = `
@@ -276,29 +414,37 @@ function renderAlerts() {
 
     alertsList.innerHTML =
         filtered
-            .map(alert => createAlertItem(alert))
+            .map(createAlertItem)
             .join("");
 }
 
+/* =========================================================
+   Create Alert HTML
+   ========================================================= */
+
 function createAlertItem(alert) {
     const type =
-        String(alert.type || "info")
-            .toLowerCase();
+        String(
+            alert.type || "info"
+        ).toLowerCase();
 
-    let typeText = "اطلاعیه";
+    let typeText =
+        "اطلاعیه";
 
     if (
         type === "danger" ||
         type === "critical" ||
         type === "قرمز"
     ) {
-        typeText = "هشدار مهم";
+        typeText =
+            "هشدار مهم";
     } else if (
         type === "warning" ||
         type === "warn" ||
         type === "زرد"
     ) {
-        typeText = "هشدار";
+        typeText =
+            "هشدار";
     }
 
     const verified =
@@ -307,9 +453,11 @@ function createAlertItem(alert) {
 
     return `
         <div class="admin-alert-item">
+
             <div class="admin-alert-main">
 
                 <div class="admin-alert-top">
+
                     <span class="badge ${escapeHTML(type)}">
                         ${escapeHTML(typeText)}
                     </span>
@@ -323,29 +471,36 @@ function createAlertItem(alert) {
                             `
                             : ""
                     }
+
                 </div>
 
                 <h3>
                     ${escapeHTML(
-                        alert.title || "بدون عنوان"
+                        alert.title ||
+                        "بدون عنوان"
                     )}
                 </h3>
 
                 <p>
                     ${escapeHTML(
-                        alert.description || ""
+                        alert.description ||
+                        ""
                     )}
                 </p>
 
                 <div class="admin-alert-meta">
+
                     <span>
-                        📍 ${escapeHTML(
-                            alert.city || "همه شهرها"
+                        📍
+                        ${escapeHTML(
+                            alert.city ||
+                            "همه شهرها"
                         )}
                     </span>
 
                     <span>
-                        🕐 ${escapeHTML(
+                        🕐
+                        ${escapeHTML(
                             formatDate(
                                 alert.created_at
                             )
@@ -359,10 +514,13 @@ function createAlertItem(alert) {
                             "نامشخص"
                         )}
                     </span>
+
                 </div>
+
             </div>
 
             <div class="admin-alert-actions">
+
                 <button
                     type="button"
                     onclick="editAlert(${Number(alert.id)})"
@@ -377,13 +535,15 @@ function createAlertItem(alert) {
                 >
                     حذف
                 </button>
+
             </div>
+
         </div>
     `;
 }
 
 /* =========================================================
-   Create / Update
+   Save Alert
    ========================================================= */
 
 async function saveAlert(event) {
@@ -391,57 +551,93 @@ async function saveAlert(event) {
 
     if (!checkLogin()) return;
 
+    /*
+     * قبل از ذخیره، دوباره نوع را تشخیص می‌دهیم.
+     */
+    autoDetectAlertType();
+
     const payload = {
-        type: typeInput?.value || "info",
-        city: cityInput?.value.trim() || "همه",
-        title: titleInput?.value.trim() || "",
+        type:
+            typeInput?.value ||
+            "info",
+
+        city:
+            cityInput?.value.trim() ||
+            "همه",
+
+        title:
+            titleInput?.value.trim() ||
+            "",
+
         description:
-            descriptionInput?.value.trim() || "",
+            descriptionInput?.value.trim() ||
+            "",
+
         source:
             sourceInput?.value.trim() ||
             "WAR ALERT",
+
         verified:
-            Boolean(verifiedInput?.checked)
+            Boolean(
+                verifiedInput?.checked
+            )
     };
 
     if (!payload.title) {
-        alert("عنوان هشدار را وارد کنید.");
+        alert(
+            "عنوان هشدار را وارد کنید."
+        );
         return;
     }
 
     if (!payload.description) {
-        alert("متن هشدار را وارد کنید.");
+        alert(
+            "متن هشدار را وارد کنید."
+        );
         return;
     }
 
     try {
-        const isEdit = editingId !== null;
+        const isEdit =
+            editingId !== null;
 
-        const url = isEdit
-            ? `${API_BASE}/api/admin/alerts/${editingId}`
-            : `${API_BASE}/api/admin/alerts`;
+        const url =
+            isEdit
+                ? `${API_BASE}/api/admin/alerts/${editingId}`
+                : `${API_BASE}/api/admin/alerts`;
 
-        const response = await apiRequest(
-            url,
-            {
-                method: isEdit
-                    ? "PUT"
-                    : "POST",
-                headers: authHeaders(true),
-                body: JSON.stringify(payload)
-            }
-        );
+        const response =
+            await apiRequest(
+                url,
+                {
+                    method:
+                        isEdit
+                            ? "PUT"
+                            : "POST",
+
+                    headers:
+                        authHeaders(true),
+
+                    body:
+                        JSON.stringify(
+                            payload
+                        )
+                }
+            );
 
         if (!response.ok) {
             const text =
                 await response.text();
 
             throw new Error(
-                text || `HTTP ${response.status}`
+                text ||
+                `HTTP ${response.status}`
             );
         }
 
-        alertForm.reset();
+        if (alertForm) {
+            alertForm.reset();
+        }
 
         editingId = null;
 
@@ -453,6 +649,8 @@ async function saveAlert(event) {
             cancelButton.style.display =
                 "none";
         }
+
+        updateDetectedType();
 
         await loadAlerts();
 
@@ -472,22 +670,26 @@ async function saveAlert(event) {
 }
 
 /* =========================================================
-   Edit
+   Edit Alert
    ========================================================= */
 
 function editAlert(id) {
     const alertItem =
         alerts.find(
             alert =>
-                Number(alert.id) === Number(id)
+                Number(alert.id) ===
+                Number(id)
         );
 
     if (!alertItem) {
-        alert("هشدار پیدا نشد.");
+        alert(
+            "هشدار پیدا نشد."
+        );
         return;
     }
 
-    editingId = Number(alertItem.id);
+    editingId =
+        Number(alertItem.id);
 
     if (alertIdInput) {
         alertIdInput.value =
@@ -496,27 +698,32 @@ function editAlert(id) {
 
     if (typeInput) {
         typeInput.value =
-            alertItem.type || "info";
+            alertItem.type ||
+            "info";
     }
 
     if (cityInput) {
         cityInput.value =
-            alertItem.city || "همه";
+            alertItem.city ||
+            "همه";
     }
 
     if (titleInput) {
         titleInput.value =
-            alertItem.title || "";
+            alertItem.title ||
+            "";
     }
 
     if (descriptionInput) {
         descriptionInput.value =
-            alertItem.description || "";
+            alertItem.description ||
+            "";
     }
 
     if (sourceInput) {
         sourceInput.value =
-            alertItem.source || "";
+            alertItem.source ||
+            "";
     }
 
     if (verifiedInput) {
@@ -524,6 +731,8 @@ function editAlert(id) {
             alertItem.verified === true ||
             alertItem.verified === "true";
     }
+
+    updateDetectedType();
 
     if (cancelButton) {
         cancelButton.style.display =
@@ -537,7 +746,7 @@ function editAlert(id) {
 }
 
 /* =========================================================
-   Delete
+   Delete Alert
    ========================================================= */
 
 async function deleteAlert(id) {
@@ -551,26 +760,30 @@ async function deleteAlert(id) {
     if (!confirmed) return;
 
     try {
-        const response = await apiRequest(
-            `${API_BASE}/api/admin/alerts/${id}`,
-            {
-                method: "DELETE",
-                headers: authHeaders()
-            }
-        );
+        const response =
+            await apiRequest(
+                `${API_BASE}/api/admin/alerts/${id}`,
+                {
+                    method: "DELETE",
+                    headers: authHeaders()
+                }
+            );
 
         if (!response.ok) {
             const text =
                 await response.text();
 
             throw new Error(
-                text || `HTTP ${response.status}`
+                text ||
+                `HTTP ${response.status}`
             );
         }
 
         await loadAlerts();
 
-        alert("هشدار حذف شد.");
+        alert(
+            "هشدار حذف شد."
+        );
     } catch (error) {
         console.error(error);
 
@@ -600,6 +813,8 @@ function cancelEdit() {
         cancelButton.style.display =
             "none";
     }
+
+    updateDetectedType();
 }
 
 /* =========================================================
@@ -623,20 +838,41 @@ function logout() {
 
 function escapeHTML(value) {
     return String(value ?? "")
-        .replace(/&/g, "&amp;")
-        .replace(/</g, "&lt;")
-        .replace(/>/g, "&gt;")
-        .replace(/"/g, "&quot;")
-        .replace(/'/g, "&#039;");
+        .replace(
+            /&/g,
+            "&amp;"
+        )
+        .replace(
+            /</g,
+            "&lt;"
+        )
+        .replace(
+            />/g,
+            "&gt;"
+        )
+        .replace(
+            /"/g,
+            "&quot;"
+        )
+        .replace(
+            /'/g,
+            "&#039;"
+        );
 }
 
 function formatDate(value) {
-    if (!value) return "نامشخص";
+    if (!value) {
+        return "نامشخص";
+    }
 
     const date =
         new Date(value);
 
-    if (Number.isNaN(date.getTime())) {
+    if (
+        Number.isNaN(
+            date.getTime()
+        )
+    ) {
         return String(value);
     }
 
@@ -681,15 +917,58 @@ if (cancelButton) {
     );
 }
 
+/*
+ * تشخیص خودکار هنگام نوشتن عنوان
+ */
+if (titleInput) {
+    titleInput.addEventListener(
+        "input",
+        autoDetectAlertType
+    );
+}
+
+/*
+ * تشخیص خودکار هنگام نوشتن توضیحات
+ */
+if (descriptionInput) {
+    descriptionInput.addEventListener(
+        "input",
+        autoDetectAlertType
+    );
+}
+
+/*
+ * اگر مدیر نوع را دستی تغییر داد،
+ * متن تشخیص داده‌شده نیز به‌روزرسانی می‌شود.
+ */
+if (typeInput) {
+    typeInput.addEventListener(
+        "change",
+        updateDetectedType
+    );
+}
+
 /* =========================================================
-   Expose functions for HTML buttons
+   Global Functions
    ========================================================= */
 
-window.editAlert = editAlert;
-window.deleteAlert = deleteAlert;
-window.logout = logout;
-window.cancelEdit = cancelEdit;
-window.loadAlerts = loadAlerts;
+window.editAlert =
+    editAlert;
+
+window.deleteAlert =
+    deleteAlert;
+
+window.logout =
+    logout;
+
+window.cancelEdit =
+    cancelEdit;
+
+window.loadAlerts =
+    loadAlerts;
+
+window.autoDetectAlertType =
+    autoDetectAlertType;
 
 /* =========================================================
    Start
@@ -698,7 +977,11 @@ window.loadAlerts = loadAlerts;
 document.addEventListener(
     "DOMContentLoaded",
     async () => {
-        if (!checkLogin()) return;
+        if (!checkLogin()) {
+            return;
+        }
+
+        updateDetectedType();
 
         await loadAlerts();
     }
